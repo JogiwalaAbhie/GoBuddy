@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "1015423722551",
+    "project_id": "gobuddy-at1435",
+    "storage_bucket": "gobuddy-at1435.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1015423722551:android:e3e3ba040120440579cbb2",
+        "android_client_info": {
+          "package_name": "com.example.gobuddy"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1015423722551-dkbhr1b48scvjgdfrktbpj4p0uqned9r.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.gobuddy",
+            "certificate_hash": "d464b6f8ef7462f73d3154b8dc8fa1233f80fdab"
+          }
+        },
+        {
+          "client_id": "1015423722551-8s332she5ji450jclvjnj3kfci6dnlro.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAAqb54PkbP-L5atLFS0NRokMRgJL2MrQU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1015423722551-8s332she5ji450jclvjnj3kfci6dnlro.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1015423722551-eqhpt6b9pv21cd7ri2fpjs3v4024afk1.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.gobuddy"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
