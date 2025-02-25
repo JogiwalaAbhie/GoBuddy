@@ -22,6 +22,8 @@ class _signupState extends State<signup> {
 
   String? errmsg;
 
+  final RegExp phoneRegExp = RegExp(r'^[0-9]{10}$');
+
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -205,7 +207,7 @@ class _signupState extends State<signup> {
                     const SizedBox(height: 20,),
                     const Center(
                       child: Text("SignUp Here",
-                        style: TextStyle(fontWeight: FontWeight.bold,fontSize: 40,color: Color(0xFF134277)),
+                        style: TextStyle(fontWeight: FontWeight.w700,fontSize: 40,color: Color(0xFF134277)),
                       ),
                     ),
                     const SizedBox(height: 20,),
@@ -225,12 +227,13 @@ class _signupState extends State<signup> {
                       style: const TextStyle(fontSize: 15),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
-                          return 'Please enter your username';
-                        }
-                        if (value.length < 3) {
+                          return 'Please enter your Phone Number Username';
+                        } else if (value.length < 3) {
                           return 'Username must be at least 3 characters long';
+                        } else if (!RegExp(r'^[a-zA-Z0-9 ]+$').hasMatch(value)) {
+                          return 'Only letters, numbers, and spaces are allowed';
                         }
-                        return null;
+                        return null; // Valid username
                       },
                       decoration: InputDecoration(
                         errorText: errmsg,
@@ -268,8 +271,9 @@ class _signupState extends State<signup> {
                         if (value == null || value.isEmpty) {
                           return 'Please enter your Phone Number';
                         }
-                        if (value.length != 10) {
-                          return 'Phone Number must be in 10 digit';
+                        final phoneRegExp = RegExp(r'^[0-9]{10}$');
+                        if (!phoneRegExp.hasMatch(value)) {
+                          return 'Invalid phone number (must be 10 digits)';
                         }
                         return null;
                       },
@@ -412,7 +416,7 @@ class _signupState extends State<signup> {
                             'Sign Up',
                             style: TextStyle(
                                 color: Color(0xFFF2F5F1),
-                                fontWeight: FontWeight.bold,
+                                fontWeight: FontWeight.w500,
                                 fontSize: 20),
                           ),
                           style: ElevatedButton.styleFrom(

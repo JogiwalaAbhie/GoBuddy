@@ -5,12 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:gobuddy/pages/help_and_supprt.dart';
+import 'package:gobuddy/pages/my_trip.dart';
+import 'package:gobuddy/pages/saved_trip.dart';
 import 'package:gobuddy/pages/setting.dart';
 import 'package:iconsax/iconsax.dart';
-import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import '../const.dart';
-import '../screen/login.dart';
 import 'navigation_page.dart';
 import 'package:http/http.dart' as http;
 
@@ -306,6 +306,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: kBackgroundColor,
         appBar: AppBar(
         title: const Text("User Profile",
         style: TextStyle(color: Colors.white),),
@@ -387,8 +388,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
                                   if (value == null || value.isEmpty) {
                                     return 'Please enter your username';
                                   }
-                                  if (value.length < 3) {
-                                    return 'Username must be at least 3 characters long';
+                                  else if (!RegExp(r'^[a-zA-Z0-9 ]+$').hasMatch(value)) {
+                                    return 'Only letters, numbers, and spaces are allowed';
                                   }
                                   return null;
                                 },
@@ -441,8 +442,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
                                   if (value == null || value.isEmpty) {
                                     return 'Please enter your Phone Number';
                                   }
-                                  if (value.length != 10) {
-                                    return 'Phone Number must be in 10 digit';
+                                  final phoneRegExp = RegExp(r'^[0-9]{10}$');
+                                  if (!phoneRegExp.hasMatch(value)) {
+                                    return 'Invalid phone number (must be 10 digits)';
                                   }
                                   return null;
                                 },
@@ -526,7 +528,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                   leading: Icon(Iconsax.map),
                   title: Text('My Trips'),
                   onTap: () {
-                    //Navigator.push(context, MaterialPageRoute(builder: (context) => MyTripPage()));
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => MyTrip()));
                   },
                 ),
               ),
@@ -539,9 +541,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
                 ),
                 child: ListTile(
                   leading: Icon(Iconsax.save_2),
-                  title: Text('Saved Destinations'),
+                  title: Text('Saved Trips'),
                   onTap: () {
-                    // Navigate to Saved Destinations
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => savedTripPage()));
                   },
                 ),
               ),

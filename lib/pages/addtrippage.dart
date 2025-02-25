@@ -1,6 +1,7 @@
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
+import 'package:gobuddy/Admin/admin_navigation.dart';
+
 import 'package:gobuddy/const.dart';
 import 'package:gobuddy/pages/navigation_page.dart';
 import 'package:intl/intl.dart';
@@ -26,8 +27,6 @@ class _AddTripPageState extends State<AddTripPage> {
   TimeOfDay? _startTime;
   DateTime? _endDate;
   TimeOfDay? _endTime;
-  int? _days;
-  int? _nights;
   String? _description;
   String? _meetingPoint;
   String? _accommodation;
@@ -36,9 +35,10 @@ class _AddTripPageState extends State<AddTripPage> {
   String? _includedServices;
   String? _contactInfo;
   String? _wacontactinfo;
-  String? _itemsToBring;
-  String? _guidelines;
-  String? _cancellationPolicy;
+  String itemsToBring = "Valid ID proof\nComfortable clothing\nWater bottle\nPersonal medications";
+  String guidelinesAndRules = "No littering in the area\nRespect local culture\nFollow the guide’s instructions\nNo smoking in restricted areas\nPets are not allowed";
+  String cancellationPolicy = "Full refund if canceled 48 hours before\n50% refund if canceled 24 hours before\nNo refund for cancellations within 24 hours";
+
   bool _isLoading = false;
 
   String? _selectedCategory = "";
@@ -57,21 +57,132 @@ class _AddTripPageState extends State<AddTripPage> {
   final ImagePicker _picker = ImagePicker();
   List<File> _selectedImages = [];
 
+  final List<String> _destinations = [
+    // 🌊 Beach Destinations
+    "Goa, India",
+    "Pondicherry, India",
+    "Marina Beach, Tamil Nadu",
+    "Dhanushkodi, Tamil Nadu",
+    "Kanyakumari, Tamil Nadu",
+    "Gokarna, Karnataka",
+    "Kovalam, Kerala",
+    "Varkala, Kerala",
+    "Havelock Island, Andaman",
+    "Neil Island, Andaman",
+
+    // 🏔️ Hill Stations
+    "Manali, Himachal Pradesh",
+    "Shimla, Himachal Pradesh",
+    "Kasol, Himachal Pradesh",
+    "Dharamshala, Himachal Pradesh",
+    "Dalhousie, Himachal Pradesh",
+    "Munnar, Kerala",
+    "Ooty, Tamil Nadu",
+    "Kodaikanal, Tamil Nadu",
+    "Coorg, Karnataka",
+    "Lonavala, Maharashtra",
+    "Mahabaleshwar, Maharashtra",
+    "Saputara, Gujarat",
+    "Mount Abu, Rajasthan",
+    "Chopta, Uttarakhand",
+    "Nainital, Uttarakhand",
+    "Mussoorie, Uttarakhand",
+    "Shillong, Meghalaya",
+    "Gangtok, Sikkim",
+    "Tawang, Arunachal Pradesh",
+
+    // 🏜️ Desert & Cultural Trips
+    "Jaisalmer, Rajasthan",
+    "Jaipur, Rajasthan",
+    "Udaipur, Rajasthan",
+    "Bikaner, Rajasthan",
+    "Rann of Kutch, Gujarat",
+    "Pushkar, Rajasthan",
+    "Jodhpur, Rajasthan",
+
+    // 🏞️ Nature & Wildlife
+    "Jim Corbett National Park, Uttarakhand",
+    "Kaziranga National Park, Assam",
+    "Sundarbans, West Bengal",
+    "Gir National Park, Gujarat",
+    "Bandipur National Park, Karnataka",
+    "Ranthambore National Park, Rajasthan",
+    "Periyar Wildlife Sanctuary, Kerala",
+
+    // 🚣 Adventure & Trekking
+    "Rishikesh, Uttarakhand",
+    "Triund Trek, Himachal Pradesh",
+    "Leh, Ladakh",
+    "Spiti Valley, Himachal Pradesh",
+    "Chandrashila Trek, Uttarakhand",
+    "Roopkund Trek, Uttarakhand",
+    "Zanskar Valley, Ladakh",
+    "Sandakphu, West Bengal",
+    "Valley of Flowers, Uttarakhand",
+
+    // 🏛️ Heritage & Spiritual Destinations
+    "Varanasi, Uttar Pradesh",
+    "Rameswaram, Tamil Nadu",
+    "Bodh Gaya, Bihar",
+    "Ajanta & Ellora Caves, Maharashtra",
+    "Konark Sun Temple, Odisha",
+    "Amritsar, Punjab",
+    "Golden Temple, Punjab",
+    "Dwarka, Gujarat",
+    "Somnath, Gujarat",
+    "Madurai, Tamil Nadu",
+    "Tirupati, Andhra Pradesh",
+    "Shirdi, Maharashtra",
+    "Vaishno Devi, Jammu & Kashmir",
+
+    // 🌆 Metro City Trips
+    "Mumbai, Maharashtra",
+    "Bangalore, Karnataka",
+    "Delhi, India",
+    "Chennai, Tamil Nadu",
+    "Hyderabad, Telangana",
+    "Kolkata, West Bengal",
+    "Ahmedabad, Gujarat",
+    "Pune, Maharashtra",
+
+    // 🎭 Unique & Hidden Gems
+    "Cherrapunji, Meghalaya",
+    "Ziro Valley, Arunachal Pradesh",
+    "Majuli Island, Assam",
+    "Mawlynnong, Meghalaya",
+    "Loktak Lake, Manipur",
+    "Lepchajagat, West Bengal",
+    "Hampi, Karnataka",
+    "Gandikota, Andhra Pradesh",
+    "Bhedaghat, Madhya Pradesh",
+    "Pachmarhi, Madhya Pradesh",
+    "Tawang, Arunachal Pradesh",
+  ];
+
+
+
   @override
   void initState() {
     super.initState();
     _fetchUsername();
   }
 
+  int _calculateDaysOfTrip() {
+    if (_startDate != null && _endDate != null) {
+      return _endDate!.difference(_startDate!).inDays;
+    }
+    return 0; // Default to 0 if dates are not selected
+  }
+
   Future<void> _pickImages() async {
     final List<XFile> selectedImages = await _picker.pickMultiImage();
-    if (selectedImages.length >= 5) {
+    if (selectedImages.length >= 2) {
       setState(() {
         _selectedImages = selectedImages.map((file) => File(file.path)).toList();
       });
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Select at least 5 images")),
+        SnackBar(content: Text("Select at least 2 images")),
       );
     }
   }
@@ -136,22 +247,57 @@ class _AddTripPageState extends State<AddTripPage> {
     }
   }
 
-  Future<void> _selectDate(BuildContext context, bool isStartDate) async {
-    final DateTime? picked = await showDatePicker(
+  Future<void> _selectStartDate(BuildContext context) async {
+    DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
+      initialDate: _startDate ?? DateTime.now(),
       firstDate: DateTime.now(),
       lastDate: DateTime(2100),
     );
-    if (picked != null) {
+
+    if (picked != null && picked != _startDate) {
       setState(() {
-        if (isStartDate) {
-          _startDate = picked;
-        } else {
-          _endDate = picked;
-        }
+        _startDate = picked;
+        _endDate = null; // Reset end date when start date changes
       });
     }
+  }
+
+  // Function to select the Trip End Date
+  Future<void> _selectEndDate(BuildContext context) async {
+    if (_startDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Please select the Trip Start Date first'))
+      );
+      return;
+    }
+
+    DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _endDate ?? _startDate!.add(Duration(days: 1)), // Default to next day
+      firstDate: _startDate!.add(Duration(days: 1)), // End date must be after start date
+      lastDate: DateTime(2100),
+    );
+
+    if (picked != null && picked != _endDate) {
+      setState(() {
+        _endDate = picked;
+      });
+    }
+  }
+
+  String? validateStartDate() {
+    if (_startDate == null) return "Please select a start date";
+    return null;
+  }
+  // Validation for End Date
+  String? validateEndDate() {
+    if (_endDate == null) {
+      return "End Date is required";
+    } else if (_startDate != null && _endDate!.isBefore(_startDate!)) {
+      return "End Date must be after Start Date";
+    }
+    return null;
   }
 
   Future<void> _selectTime(BuildContext context, bool isStartTime) async {
@@ -212,6 +358,7 @@ class _AddTripPageState extends State<AddTripPage> {
         ));
         return;
       }
+      int daysOfTrip = _calculateDaysOfTrip();
 
       // ✅ Generate a unique trip ID
       String tripId = FirebaseFirestore.instance.collection('trips').doc().id;
@@ -227,8 +374,7 @@ class _AddTripPageState extends State<AddTripPage> {
         "startTime": _startTime?.format(context),
         "endDate": _endDate?.toIso8601String(),
         "endTime": _endTime?.format(context),
-        "days": _days,
-        "nights": _nights,
+        "daysOfTrip": daysOfTrip,
         "description": _description,
         "meetingPoint": _meetingPoint,
         "transportation": selectedTransport,
@@ -238,9 +384,10 @@ class _AddTripPageState extends State<AddTripPage> {
         "includedServices": _includedServices,
         "contactInfo": _contactInfo,
         "whatsappInfo": _wacontactinfo,
-        "itemsToBring": _itemsToBring,
-        "guidelines": _guidelines,
-        "cancellationPolicy": _cancellationPolicy,
+        "tripRole":"user",
+        "itemsToBring": itemsToBring,
+        "guidelines": guidelinesAndRules,
+        "cancellationPolicy": cancellationPolicy,
         "photos": uploadedImageUrls, // Save uploaded images in Firestore
         "createdAt": DateTime.now().toIso8601String(),
       };
@@ -264,7 +411,7 @@ class _AddTripPageState extends State<AddTripPage> {
           SnackBar(content: Text('Trip successfully hosted!')),
         );
 
-        Navigator.push(context, MaterialPageRoute(builder: (context) => NavigationPage()));
+        Navigator.push(context, MaterialPageRoute(builder: (context) => AdminNavigationPage()));
       } catch (error) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error saving trip: $error')),
@@ -278,11 +425,10 @@ class _AddTripPageState extends State<AddTripPage> {
   }
 
 
-
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: kBackgroundColor,
       appBar: AppBar(
         title: Text("Host a Trip",
         style: TextStyle(color: Colors.white),
@@ -358,21 +504,114 @@ class _AddTripPageState extends State<AddTripPage> {
                   if (value == null || value.isEmpty) {
                     return 'Please enter Trip Title';
                   }
-                  return null;
-                },
-              ),
-              _buildTextField(
-                label: "Destination",
-                hint: "Enter the destination",
-                onSaved: (value) => _destination = value,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter Destination';
+                  final usernameRegExp = RegExp(r'^[a-zA-Z]');
+                  if (!usernameRegExp.hasMatch(value)) {
+                    return 'Invalid Trip Title';
                   }
                   return null;
                 },
               ),
               SizedBox(height: 5),
+              Padding(
+                padding: const EdgeInsets.all(0.0),
+                child: Autocomplete<String>(
+                  optionsBuilder: (TextEditingValue textEditingValue) {
+                    if (textEditingValue.text.isEmpty) {
+                      return const Iterable<String>.empty();
+                    }
+                    return _destinations.where((destination) =>
+                        destination.toLowerCase().contains(textEditingValue.text.toLowerCase()));
+                  },
+                  onSelected: (String selection) {
+                    print('User selected: $selection');
+                  },
+                  fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+                    return TextFormField( // ✅ Corrected: Now returning TextFormField
+                      controller: controller,
+                      focusNode: focusNode,
+                      decoration: InputDecoration(
+                        labelText: "Destination",
+                        labelStyle: TextStyle(
+                          color: Color(0xFF134277),
+                        ),
+                        hintText: "Enter the destination",
+                        hintStyle: TextStyle(
+                          color: Colors.grey,
+                        ),
+                        border: InputBorder.none,
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFF8BA7E8), width: 2),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFF134277), width: 2),
+                        ),
+                        errorBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Colors.red, width: 1),
+                        ),
+                        focusedErrorBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Colors.red, width: 2),
+                        ),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return "Please enter Destination";
+                        }
+                        return null;
+                      },
+                      onSaved: (value) => _destination = value,
+                    );
+                  },
+                  optionsViewBuilder: (context, onSelected, options) {
+                    return Align(
+                      alignment: Alignment.topLeft,
+                      child: Material(
+                        color: Colors.white, // Background color of the suggestion box
+                        elevation: 4, // Adds shadow effect
+                        borderRadius: BorderRadius.circular(20),
+                        child: Container(
+                          width: MediaQuery.of(context).size.width * 0.925, // Adjust width
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.white, width: 2), // Border color
+                          ),
+                          child: ListView.builder(
+                            padding: EdgeInsets.zero,
+                            itemCount: options.length,
+                            shrinkWrap: true,
+                            itemBuilder: (BuildContext context, int index) {
+                              final String option = options.elementAt(index);
+                              return GestureDetector(
+                                onTap: () => onSelected(option),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white, // Default item background
+                                    border: Border(
+                                      bottom: BorderSide(color: Colors.grey.shade300), // Border between items
+                                    ),
+                                  ),
+                                  child: Text(
+                                    option,
+                                    style: TextStyle(
+                                      color: Colors.black, // Custom text color
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 dropdownColor: kBackgroundColor,
                 value: _selectedCategory!.isNotEmpty ? _selectedCategory : null,
@@ -422,7 +661,8 @@ class _AddTripPageState extends State<AddTripPage> {
                 context,
                 label: "Start Date",
                 date: _startDate,
-                onTap: () => _selectDate(context, true),
+                onTap: () => _selectStartDate(context),
+                validator: validateStartDate,
               ),
               _buildTimeField(
                 context,
@@ -432,39 +672,16 @@ class _AddTripPageState extends State<AddTripPage> {
               ),
               _buildDateField(
                 context,
-                label: "End Date",
+                label: "Trip End Date",
                 date: _endDate,
-                onTap: () => _selectDate(context, false),
+                onTap: () => _selectEndDate(context),
+                validator: validateEndDate,
               ),
               _buildTimeField(
                 context,
                 label: "End Time",
                 time: _endTime,
                 onTap: () => _selectTime(context, false),
-              ),
-              _buildTextField(
-                label: "Number of Days",
-                hint: "Enter number of days",
-                keyboardType: TextInputType.number,
-                onSaved: (value) => _days = int.tryParse(value ?? ''),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter Trip Fee (per person)';
-                  }
-                  return null;
-                },
-              ),
-              _buildTextField(
-                label: "Number of Nights",
-                hint: "Enter number of nights",
-                keyboardType: TextInputType.number,
-                onSaved: (value) => _nights = int.tryParse(value ?? ''),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter Number of Nights';
-                  }
-                  return null;
-                },
               ),
               _buildTextField(
                 label: "Description",
@@ -550,10 +767,17 @@ class _AddTripPageState extends State<AddTripPage> {
                 label: "Maximum Participants",
                 hint: "Enter the number of participants",
                 keyboardType: TextInputType.number,
-                onSaved: (value) => _maxParticipants = int.tryParse(value ?? ''),
+                onSaved: (value) {
+                  if (value != null && value.isNotEmpty) {
+                    _maxParticipants = int.tryParse(value); // Convert String to int safely
+                  }
+                },
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Please enter Maximum Participants';
+                  }
+                  if (!RegExp(r'^[0-9]+$').hasMatch(value)) {
+                    return 'Enter valid Maximum Participants(must be digits)';
                   }
                   return null;
                 },
@@ -566,6 +790,9 @@ class _AddTripPageState extends State<AddTripPage> {
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Please enter Trip Fee (per person)';
+                  }
+                  if (!RegExp(r'^[0-9]+$').hasMatch(value)) {
+                    return 'Invalid Trip Fee(must be digits)';
                   }
                   return null;
                 },
@@ -590,8 +817,9 @@ class _AddTripPageState extends State<AddTripPage> {
                   if (value == null || value.isEmpty) {
                     return 'Please enter Contact Information';
                   }
-                  if (value.length != 10) {
-                    return 'Contact Information must be in 10 digit';
+                  final phoneRegExp = RegExp(r'^[0-9]{10}$');
+                  if (!phoneRegExp.hasMatch(value)) {
+                    return 'Invalid contact details (must be 10 digits)';
                   }
                   return null;
                 },
@@ -605,54 +833,56 @@ class _AddTripPageState extends State<AddTripPage> {
                   if (value == null || value.isEmpty) {
                     return 'Please enter WhatsaApp contact';
                   }
-                  if (value.length != 10) {
-                    return 'WhatsaApp contact must be in 10 digit';
+                  final phoneRegExp = RegExp(r'^[0-9]{10}$');
+                  if (!phoneRegExp.hasMatch(value)) {
+                    return 'Invalid WhatsApp contact details (must be 10 digits)';
                   }
                   return null;
                 },
               ),
-              _buildTextField(
-                label: "Items to Bring",
-                hint: "Enter Items to Bring",
-                onSaved: (value) => _itemsToBring = value,
-                maxLines: 2,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter Items to Bring';
-                  }
-                  return null;
-                },
-              ),
-              _buildTextField(
-                label: "Guidelines and Rules",
-                hint: "Enter guidelines",
-                onSaved: (value) => _guidelines = value,
-                maxLines: 2,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter Guidelines and Rules';
-                  }
-                  return null;
-                },
-              ),
-              _buildTextField(
-                label: "Cancellation Policy",
-                hint: "Enter cancellation policy",
-                onSaved: (value) => _cancellationPolicy = value,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter Cancellation Policy';
-                  }
-                  return null;
-                },
-              ),
+              // _buildTextField(
+              //   label: "Items to Bring",
+              //   hint: "Enter Items to Bring",
+              //   onSaved: (value) => _itemsToBring = value,
+              //   maxLines: 2,
+              //   validator: (value) {
+              //     if (value == null || value.isEmpty) {
+              //       return 'Please enter Items to Bring';
+              //     }
+              //     return null;
+              //   },
+              // ),
+              // _buildTextField(
+              //   label: "Guidelines and Rules",
+              //   hint: "Enter guidelines",
+              //   onSaved: (value) => _guidelines = value,
+              //   maxLines: 2,
+              //   validator: (value) {
+              //     if (value == null || value.isEmpty) {
+              //       return 'Please enter Guidelines and Rules';
+              //     }
+              //     return null;
+              //   },
+              // ),
+              // _buildTextField(
+              //   label: "Cancellation Policy",
+              //   hint: "Enter cancellation policy",
+              //   onSaved: (value) => _cancellationPolicy = value!,
+              //   validator: (value) {
+              //     if (value == null || value.isEmpty) {
+              //       return 'Please enter Cancellation Policy';
+              //     }
+              //     return null;
+              //   },
+              // ),
               SizedBox(height: 7,),
               //USERNAME FIELD
               TextFormField(
                 readOnly: true,
                 initialValue: _hostusername,
                 decoration: InputDecoration(
-                  hintText: _hostusername!.isEmpty ? 'Loading...' : _hostusername,
+                  //hintText: _hostusername!.isEmpty ? 'Loading...' : _hostusername,
+                  hintText: _hostusername,
                   prefixIcon: Icon(Icons.person),
                   border: InputBorder.none,
                   enabledBorder: OutlineInputBorder(
@@ -758,13 +988,17 @@ class _AddTripPageState extends State<AddTripPage> {
     required String label,
     required DateTime? date,
     required VoidCallback onTap,
+    required String? Function()? validator,
   }) {
+    String? errorText = validator?.call(); // Call validator to check errors
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: InkWell(
         onTap: onTap,
         child: InputDecorator(
           decoration: InputDecoration(
+            labelText: label,
             border: InputBorder.none,
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
@@ -787,17 +1021,27 @@ class _AddTripPageState extends State<AddTripPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                date != null ? DateFormat.yMMMd().format(date) : "Select $label",
+                date == null ? "Select Date" : DateFormat('yyyy-MM-dd').format(date),
                 style: TextStyle(
-                  color: date != null ? Colors.black : Color(0xFF134277),
+                  fontSize: 16,
+                  color: date == null ? Colors.grey : Colors.black,
                 ),
               ),
+              if (errorText != null) // Display validation message if there's an error
+                Padding(
+                  padding: const EdgeInsets.only(top: 5),
+                  // child: Text(
+                  //   errorText,
+                  //   style: TextStyle(color: Colors.red, fontSize: 12),
+                  // ),
+                ),
             ],
           ),
         ),
       ),
     );
   }
+
 
   // Time Field Widget
   Widget _buildTimeField(BuildContext context, {
@@ -847,45 +1091,3 @@ class _AddTripPageState extends State<AddTripPage> {
 
 }
 
-
-
-
-//
-// class DisplayImages extends StatelessWidget {
-//   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       appBar: AppBar(title: Text("Uploaded Trip Photos")),
-//       body: StreamBuilder(
-//         stream: _firestore.collection("trips").snapshots(),
-//         builder: (context, AsyncSnapshot<QuerySnapshot> snapshot) {
-//           if (!snapshot.hasData) return Center(child: CircularProgressIndicator());
-//
-//           final trips = snapshot.data!.docs;
-//
-//           return ListView.builder(
-//             itemCount: trips.length,
-//             itemBuilder: (context, index) {
-//               List<String> imageUrls = List<String>.from(trips[index]["imageUrls"]);
-//
-//               return Column(
-//                 crossAxisAlignment: CrossAxisAlignment.start,
-//                 children: [
-//                   Text("Trip ${index + 1}", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-//                   SizedBox(height: 10),
-//                   Wrap(
-//                     spacing: 8,
-//                     children: imageUrls.map((url) => Image.network(url, width: 80, height: 80)).toList(),
-//                   ),
-//                   Divider(),
-//                 ],
-//               );
-//             },
-//           );
-//         },
-//       ),
-//     );
-//   }
-// }

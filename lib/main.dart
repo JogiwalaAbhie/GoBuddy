@@ -30,6 +30,7 @@ class MyApp extends StatelessWidget {
             theme: ThemeData(
               scaffoldBackgroundColor: Color(0xFFF2F5F1),
               fontFamily: 'Rubik',
+
             ),
             title: 'Go Buddy',
             home: TravelOnBoardingScreen()

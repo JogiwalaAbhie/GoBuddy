@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:gobuddy/pages/searchpage.dart';
+import 'package:gobuddy/pages/search_page.dart';
 import 'package:gobuddy/pages/travel_home_screen.dart';
 import 'package:gobuddy/pages/user_profile.dart';
 import 'package:google_nav_bar/google_nav_bar.dart';

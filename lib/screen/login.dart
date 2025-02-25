@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
+import 'package:gobuddy/Admin/admin_home.dart';
+import 'package:gobuddy/Admin/admin_navigation.dart';
 import 'package:gobuddy/const.dart';
 import 'package:gobuddy/screen/signup.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -34,16 +36,41 @@ class _loginState extends State<login> {
       });
       try {
         // Log in with email and password
-        await FirebaseAuth.instance.signInWithEmailAndPassword(
+        UserCredential userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
         );
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Login successful!")),
-        );
+        DocumentSnapshot doc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userCredential.user?.uid)
+            .get();
 
-        Navigator.push(context, MaterialPageRoute(builder: (context) => NavigationPage()));
+        if (doc.exists) {
+          String emailid = doc['email'];// Get user role
+
+          if (emailid == "admin@gobuddy.com") {
+            // Navigate to Admin Panel
+            Navigator.push(context, MaterialPageRoute(builder: (context) => AdminNavigationPage()));
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text("Admin Login successful!")),
+            );
+          } else {
+            // Navigate to user Panel
+            Navigator.push(context, MaterialPageRoute(builder: (context) => NavigationPage()));
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text("Login successful!")),
+            );
+
+
+          }
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("User not found")),
+          );
+        }
+
+
       } on FirebaseAuthException catch (e) {
         setState(() {
           errmsg="Either Email or Password are Wrong!";
@@ -225,7 +252,7 @@ class _loginState extends State<login> {
                   const SizedBox(height: 30,),
                   const Center(
                     child: Text("Login Here",
-                      style: TextStyle(fontWeight: FontWeight.bold,fontSize: 40,color: Color(0xFF134277)),
+                      style: TextStyle(fontWeight: FontWeight.w700,fontSize: 40,color: Color(0xFF134277)),
                     ),
                   ),
                   const SizedBox(height: 20,),
@@ -343,7 +370,7 @@ class _loginState extends State<login> {
                           Navigator.push(context, MaterialPageRoute(builder: (context) => forgotpass()));
                         },
                         child: const Text("Forgot Password?",
-                          style: TextStyle(fontWeight: FontWeight.bold,color: Color(0xFF134277)),
+                          style: TextStyle(fontWeight: FontWeight.w500,color: Color(0xFF134277)),
                         ),
                       )
                     ],
@@ -366,7 +393,7 @@ class _loginState extends State<login> {
                           'Login',
                           style: const TextStyle(
                               color: Color(0xFFF2F5F1),
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w500,
                               fontSize: 20),
                         ),
                         style: ElevatedButton.styleFrom(
@@ -538,6 +565,7 @@ class _ForgotPasswordPageState extends State<forgotpass> {
       appBar: AppBar(
         title: const Text('Forgot Password',style: TextStyle(color: Colors.white),),
         backgroundColor: Color(0xFF134277),
+        foregroundColor: Colors.white,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -559,7 +587,7 @@ class _ForgotPasswordPageState extends State<forgotpass> {
                       'Reset Your Password',
                       style: TextStyle(
                         fontSize: 28,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w500,
                         color: Color(0xFF134277),
                       ),
                     ),
@@ -638,7 +666,7 @@ class _ForgotPasswordPageState extends State<forgotpass> {
                       ),
                       child: const Text(
                         'Send Reset Link',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Colors.white),
                       ),
                     ),
                     const SizedBox(height: 20.0),

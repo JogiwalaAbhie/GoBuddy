@@ -158,7 +158,7 @@ class _SettingsPageState extends State<SettingsPage> {
       padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: Text(
         title,
-        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF134277)),
+        style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500, color: Color(0xFF134277)),
       ),
     );
   }
@@ -183,6 +183,127 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 }
 
+//About Us Page
+class AboutUsPage extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        foregroundColor: Colors.white,
+        title: const Text("About Us",
+          style: TextStyle(color: Colors.white),),
+        backgroundColor: const Color(0xFF134277),
+      ),
+      body: Padding(
+        padding: EdgeInsets.all(16.0),
+        child: ListView(
+          children: [
+            Text('Welcome to GoBuddy!',
+              style: TextStyle(color: Color(0xFF134277),fontWeight: FontWeight.w500,fontSize: 22),),
+            Divider(),
+            _buildSection(
+              title: 'What is GoBuddy?',
+              content:
+              'GoBuddy is your ultimate travel companion, designed to connect like-minded travelers, host trips, and help you discover new adventures. Whether you\'re a solo traveler or love exploring with friends, GoBuddy provides a platform for planning, joining, and sharing unforgettable travel experiences.',
+            ),
+            Divider(),
+            _buildSection(
+              title: 'Our Mission',
+              content:
+              'At GoBuddy, our mission is to make travel easy, enjoyable, and social. We aim to create a seamless experience where travelers can organize trips, share exciting destinations, and connect with others who share the same passion for exploring the world.',
+            ),
+            Divider(),
+            _buildSection(
+              title: 'Features of GoBuddy',
+              content:
+              '- Host Trips: Plan and host trips for your friends or others.\n'
+                  '- Join Trips: Discover trips hosted by others and join them.\n'
+                  '- Chat with Fellow Travelers: Use our in-app chat feature to connect with fellow travelers.\n'
+                  '- Trip Planning: Organize trip details like dates, destinations, and activities all in one place.\n'
+                  '- Ratings & Reviews: Rate and review trips and hosts to help others make informed decisions.\n'
+                  '- Support: Get help and support whenever you need it with our dedicated customer service.',
+            ),
+            Divider(),
+            _buildSection(
+              title: 'Why Choose GoBuddy?',
+              content:
+              'GoBuddy is not just another travel app; it\'s a community of passionate travelers. With our easy-to-use interface, collaborative trip planning features, and focus on socializing, GoBuddy provides a unique platform that makes traveling fun and easy.',
+            ),
+            Divider(),
+            _buildSection(
+              title: 'Our Values',
+              content:
+              '- Community: We believe in the power of connecting with like-minded individuals who share the same travel passion.\n'
+                  '- Safety: We prioritize the safety of our users by offering secure trip planning and communication features.\n'
+                  '- Sustainability: We encourage responsible travel by promoting eco-friendly trips and supporting local communities.\n'
+                  '- Adventure: We inspire users to step out of their comfort zones and explore the world, embracing new cultures and experiences.',
+            ),
+            Divider(),
+            _buildSection(
+              title: 'Security & Privacy',
+              content:
+              'Your security and privacy are important to us. GoBuddy takes all necessary measures to protect your personal data, including using encryption and adhering to strict data privacy policies. We will never share your personal details with third parties without your consent, and you have full control over your account settings and data.',
+            ),
+            Divider(),
+            _buildSection(
+              title: 'How We Keep Your Data Safe',
+              content:
+              '- Encrypted Data Storage: All sensitive data, including passwords and personal information, is securely encrypted.\n'
+                  '- Two-Factor Authentication: We offer two-factor authentication (2FA) for an added layer of security.\n'
+                  '- Regular Security Audits: We conduct regular audits to ensure our app is up-to-date with the latest security practices.',
+            ),
+            Divider(),
+            _buildSection(
+              title: 'Contact Us',
+              content:
+              'We would love to hear from you! If you have any questions, feedback, or suggestions, feel free to contact us at:\n\n'
+                  'Email: support@gobuddy.com\n'
+                  'Phone: +91 7201821370\n',
+            ),
+            Divider(),
+            _buildSection(
+              title: 'Feedback & Suggestions',
+              content:
+              'Your feedback helps us improve the GoBuddy experience! If you have any suggestions for new features, or if you have encountered an issue while using the app, please let us know by contacting us at support@gobuddy.com. We appreciate your input and strive to make GoBuddy the best travel companion for everyone.',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Helper function to display a section with title and content
+  Widget _buildSection({required String title, required String content}) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 12.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(fontSize: 19, fontWeight: FontWeight.w500,color: Colors.black),
+          ),
+          SizedBox(height: 8),
+          Text(
+            content,
+            style: TextStyle(color: Colors.black45,fontSize: 16),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper function for the title at the top of the page
+  Widget _buildTitle(String title) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 16.0),
+      child: Text(
+        title,
+        style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+}
 
 
 //Edit Profile Page
@@ -329,7 +450,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 Text(
                   textAlign: TextAlign.center,
                   'Edit Your Profile',
-                  style: TextStyle(color: Colors.black,fontSize: 24, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: Colors.black,fontSize: 24, fontWeight: FontWeight.w500),
                 ),
                 SizedBox(height: 30),
                 
@@ -341,10 +462,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   enableSuggestions: true,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Please enter your Username';
+                      return 'Please enter your username';
                     }
-                    if (value.length < 3) {
-                      return 'Username must be at least 3 characters long';
+                    final usernameRegExp = RegExp(r'^[a-zA-Z][a-zA-Z0-9_]{2,14}$');
+                    if (!usernameRegExp.hasMatch(value)) {
+                      return 'Invalid username (3-15 chars, letters, numbers, _)';
                     }
                     return null;
                   },
@@ -385,8 +507,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     if (value == null || value.isEmpty) {
                       return 'Please enter your Phone Number';
                     }
-                    if (value.length != 10) {
-                      return 'Phone Number must be in 10 digit';
+                    final phoneRegExp = RegExp(r'^[0-9]{10}$');
+                    if (!phoneRegExp.hasMatch(value)) {
+                      return 'Invalid phone number (must be 10 digits)';
                     }
                     return null;
                   },
@@ -549,7 +672,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     child: Text("Save Changes",
                       style: const TextStyle(
                         color: Color(0xFFF2F5F1),
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w500,
                         fontSize: 20),),
                     style: ElevatedButton.styleFrom(
                       foregroundColor: Colors.white,
@@ -602,7 +725,7 @@ class ProfileVisibilityPage extends StatelessWidget {
             children: [
               Text(
                 'Profile Visibility',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w500),
               ),
               SizedBox(height: 10),
               Text(
@@ -672,7 +795,7 @@ class WhoCanSeeMyTripsPage extends StatelessWidget {
             children: [
               Text(
                 'Who Can See My Trips?',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w500),
               ),
               SizedBox(height: 10),
               Text(
@@ -890,7 +1013,7 @@ class HelpCenterPage extends StatelessWidget {
         foregroundColor: Colors.white,),
       body: ListView(
         children: faqs.map((faq) => ExpansionTile(
-          title: Text(faq['question']!, style: TextStyle(fontWeight: FontWeight.bold,color: Colors.black,)),
+          title: Text(faq['question']!, style: TextStyle(fontWeight: FontWeight.w500,color: Colors.black,)),
           children: [Padding(padding: EdgeInsets.all(16.0), child: Text(faq['answer']!))],
         )).toList(),
       ),
@@ -987,7 +1110,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
               children: [
                 Text(
                   "We're here to help!",
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
                 ),
                 SizedBox(height: 10),
                 Text(
@@ -1121,7 +1244,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
                     child: Text("Submit Request",
                       style: const TextStyle(
                           color: Color(0xFFF2F5F1),
-                          fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.w500,
                           fontSize: 20),),
                     style: ElevatedButton.styleFrom(
                       foregroundColor: Colors.white,
@@ -1244,7 +1367,7 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
               children: [
                 Text(
                   "Report an issue",
-                  style: TextStyle(color:Color(0xFF134277),fontSize: 20, fontWeight: FontWeight.bold),
+                  style: TextStyle(color:Color(0xFF134277),fontSize: 20, fontWeight: FontWeight.w500),
                 ),
                 SizedBox(height: 10),
                 Text(
@@ -1252,7 +1375,7 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
                   style: TextStyle(fontSize: 14, color: Colors.grey[700]),
                 ),
                 SizedBox(height: 20),
-                Text("Problem Category", style: TextStyle(fontWeight: FontWeight.bold)),
+                Text("Problem Category", style: TextStyle(fontWeight: FontWeight.w500)),
                 SizedBox(height: 5),
                 DropdownButtonFormField(
                   value: _selectedCategory,
@@ -1370,7 +1493,7 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
                     child: Text("Submit Report",
                       style: const TextStyle(
                         color: Color(0xFFF2F5F1),
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w500,
                       fontSize: 20),
                       ),
                     style: ElevatedButton.styleFrom(
@@ -1516,7 +1639,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                       'Change Your Password',
                       style: TextStyle(
                         fontSize: 28,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w500,
                         color: Color(0xFF134277),
                       ),
                     ),
@@ -1638,7 +1761,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                       ),
                       child: const Text(
                         'Change Password',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Colors.white),
                       ),
                     ),
                     SizedBox(height: 20),

@@ -100,7 +100,7 @@ class _TravelOnBoardingScreenState extends State<TravelOnBoardingScreen>{
                           style: const TextStyle(
                             fontSize: 70,
                             color: Colors.white,
-                            fontWeight: FontWeight.w400,
+                            fontWeight: FontWeight.w600,
                             height: 1,
                           ),
                         ),
@@ -168,7 +168,7 @@ class _TravelOnBoardingScreenState extends State<TravelOnBoardingScreen>{
                                   style: TextStyle(
                                     fontSize: 20,
                                     color: Colors.white,
-                                    fontWeight: FontWeight.bold,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
                                 SizedBox(width: 5),
@@ -185,7 +185,7 @@ class _TravelOnBoardingScreenState extends State<TravelOnBoardingScreen>{
                         const Center(
                           child: Text(
                             "Explore the World, One Trip at a Time",
-                            style: TextStyle(fontSize: 16),
+                            style: TextStyle(fontSize: 17),
                             textAlign: TextAlign.center,
                           ),
                         ),
