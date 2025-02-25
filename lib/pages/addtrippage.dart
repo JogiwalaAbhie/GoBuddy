@@ -160,7 +160,6 @@ class _AddTripPageState extends State<AddTripPage> {
   ];
 
 
-
   @override
   void initState() {
     super.initState();
