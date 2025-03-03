@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:gobuddy/Admin/admin_navigation.dart';
 import 'package:gobuddy/Admin/admin_profile.dart';
 import 'package:gobuddy/Admin/admin_trips.dart';
+import 'package:gobuddy/Admin/user_trip_reports.dart';
 import 'package:gobuddy/Admin/user_trips.dart';
 import 'package:iconsax/iconsax.dart';
 
@@ -12,6 +13,8 @@ import '../models/travel_model.dart';
 import '../pages/onboard_travel.dart';
 import '../pages/place_detail.dart';
 import '../pages/setting.dart';
+import '../widgets/adminside_populartrip.dart';
+import '../widgets/adminside_recomtrip.dart';
 import '../widgets/popular_place.dart';
 import '../widgets/recomendate.dart';
 
@@ -23,6 +26,27 @@ class AdminHomePage extends StatefulWidget {
 }
 
 class _AdminHomePageState extends State<AdminHomePage> {
+
+  List<Trip> trips = [];
+
+  @override
+  void initState() {
+    super.initState();
+    fetchTrips(); // Load trips when the page opens
+  }
+
+
+  Future<void> fetchTrips() async {
+    Stream<List<Trip>> fetchedTrips = TripService().fetchTrips(); // Fetch trips stream
+
+    fetchedTrips.listen((tripList) {
+      setState(() {
+        trips = tripList; // Update the UI when new data arrives
+      });
+    });
+  }
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -159,7 +183,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
                 Navigator.push(
                     context,
                     MaterialPageRoute(
-                        builder: (context) => AdminNavigationPage()));
+                        builder: (context) => UserTripReportsPage()));
               },
             ),
             ListTile(
@@ -244,7 +268,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
                 scrollDirection: Axis.horizontal,
                 child: StreamBuilder<List<Trip>>(
                   // Use correct type
-                  stream: AdminTripService().fetchTrips(),
+                  stream: PopularTripService().fetchPopularTrips(),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(
@@ -280,7 +304,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
                                 ),
                               );
                             },
-                            child: AdminSideTripWidget1(
+                            child: AdminSidePopularTripManage(
                               trip: trip, // Pass the trip to the widget
                             ),
                           ),
@@ -317,54 +341,52 @@ class _AdminHomePageState extends State<AdminHomePage> {
               const SizedBox(height: 12),
               //user trips
               StreamBuilder<List<Trip>>(
-                stream: TripService().fetchTrips(), // Fetch trips in real-time
+                stream: RecommendationTripService().fetchRecommendationTrips(), // Fetch trips in real-time
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return Center(
-                        child:
-                            CircularProgressIndicator()); // Show loading indicator
+                    return Center(child: CircularProgressIndicator()); // Show loading indicator
+                  }
+
+                  if (snapshot.hasError) {
+                    return Center(child: Text("Error loading trips: ${snapshot.error}"));
                   }
 
                   if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return Center(
-                        child: Text("No trips found.")); // Handle empty data
+                    return Center(child: Text("No trips found.")); // Handle empty data
                   }
 
-                  final recomendate = snapshot.data!; // Get the trip data
+                  final trips = snapshot.data!; // Get the trip data
 
-                  return Column(
-                    children: List.generate(
-                      recomendate.length,
-                      (index) {
-                        final trip =
-                            recomendate[index]; // Get trip at this index
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 15),
-                          child: GestureDetector(
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => PlaceDetailScreen(
-                                    trip:
-                                        trip, // Pass selected trip to the detail screen
+                  return SingleChildScrollView(  // Fix overflow issue
+                    child: Column(
+                      children: List.generate(
+                        trips.length,
+                            (index) {
+                          final trip = trips[index]; // Get trip at this index
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 15),
+                            child: GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => PlaceDetailScreen(trip: trip),
                                   ),
-                                ),
-                              );
-                            },
-                            child: AdminSideUserTrip(
-                              trip: trip, // Pass the trip to the widget
+                                );
+                              },
+                              child: AdminSideRecomTripManage(
+                                trip: trip,
+                              ),
                             ),
-                          ),
-                        );
-                      },
+                          );
+                        },
+                      ),
                     ),
                   );
                 },
-              ),
 
-              // You can add more widgets here as needed.
-            ],
+              ),
+            ]
           ),
         ),
       ),

@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:gobuddy/Admin/admin_navigation.dart';
-
 import 'package:gobuddy/const.dart';
 import 'package:gobuddy/pages/navigation_page.dart';
 import 'package:intl/intl.dart';
@@ -10,6 +9,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:lottie/lottie.dart';
 
 class AddTripPage extends StatefulWidget {
   @override
@@ -52,7 +52,13 @@ class _AddTripPageState extends State<AddTripPage> {
   ];
 
   String? selectedTransport;
-  List<String> transport = ["Car", "Bus", "Train", "Flight", "Bike"];
+  List<String> transport = [
+    'Car',
+    'Bus',
+    'Train',
+    'Flight',
+    'Bike',
+    'Boat'];
 
   final ImagePicker _picker = ImagePicker();
   List<File> _selectedImages = [];
@@ -508,11 +514,11 @@ class _AddTripPageState extends State<AddTripPage> {
                     return 'Invalid Trip Title';
                   }
                   return null;
-                },
+                }
               ),
               SizedBox(height: 5),
               Padding(
-                padding: const EdgeInsets.all(0.0),
+                padding: const EdgeInsets.all(0.00),
                 child: Autocomplete<String>(
                   optionsBuilder: (TextEditingValue textEditingValue) {
                     if (textEditingValue.text.isEmpty) {
@@ -920,7 +926,7 @@ class _AddTripPageState extends State<AddTripPage> {
                     ),
                     onPressed: _isLoading ? null : _saveTrip,
                     child:_isLoading
-                      ? CircularProgressIndicator(color: Colors.white,backgroundColor:Color(0xFF134277) ,)
+                      ? Lottie.asset("assets/animation/loadwithplane.json")
                       : Text("Host Trip", style: TextStyle(fontSize: 18,color: Colors.white)),
                   ),
                 ),

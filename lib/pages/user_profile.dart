@@ -13,7 +13,6 @@ import 'package:image_picker/image_picker.dart';
 import '../const.dart';
 import 'navigation_page.dart';
 import 'package:http/http.dart' as http;
-
 import 'onboard_travel.dart';
 
 

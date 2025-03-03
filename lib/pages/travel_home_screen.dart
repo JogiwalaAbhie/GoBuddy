@@ -195,37 +195,37 @@ class _TravelHomeScreenState extends State<TravelHomeScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.start,
             children: [
-              // const SizedBox(height: 20),
-              // const Padding(
-              //   padding: EdgeInsets.symmetric(horizontal: 15),
-              //   child: Row(
-              //     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              //     children: [
-              //       Text(
-              //         "Popular place",
-              //         style: TextStyle(
-              //           fontSize: 20,
-              //           fontWeight: FontWeight.w600,
-              //           color: Colors.black,
-              //         ),
-              //       ),
-              //       Text(
-              //         "See all",
-              //         style: TextStyle(
-              //           fontSize: 14,
-              //           color: blueTextColor,
-              //         ),
-              //       )
-              //     ],
-              //   ),
-              // ),
+              const SizedBox(height: 20),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 15),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "Popular place",
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black,
+                      ),
+                    ),
+                    Text(
+                      "See all",
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: blueTextColor,
+                      ),
+                    )
+                  ],
+                ),
+              ),
               const SizedBox(height: 15),
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.only(bottom: 20),
                 child: StreamBuilder<List<Trip>>(
                   // Use correct type
-                  stream: AdminTripService().fetchTrips(),
+                  stream: PopularTripService().fetchPopularTrips(),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(
@@ -262,7 +262,7 @@ class _TravelHomeScreenState extends State<TravelHomeScreen> {
                                 ),
                               );
                             },
-                            child: AdminTripWidget1(
+                            child: PopularTripWidget(
                               destination: trip, // Pass the trip to the widget
                             ),
                           ),
@@ -272,30 +272,30 @@ class _TravelHomeScreenState extends State<TravelHomeScreen> {
                   },
                 ),
               ),
-              // const Padding(
-              //   padding: EdgeInsets.symmetric(horizontal: 15),
-              //   child: Row(
-              //     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              //     children: [
-              //       Text(
-              //         "Recomendation for you",
-              //         style: TextStyle(
-              //           fontSize: 20,
-              //           fontWeight: FontWeight.w600,
-              //           color: Colors.black,
-              //         ),
-              //       ),
-              //       Text(
-              //         "See all",
-              //         style: TextStyle(
-              //           fontSize: 14,
-              //           color: blueTextColor,
-              //         ),
-              //       )
-              //     ],
-              //   ),
-              // ),
-              // const SizedBox(height: 20),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 15),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "Recomendation for you",
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black,
+                      ),
+                    ),
+                    Text(
+                      "See all",
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: blueTextColor,
+                      ),
+                    )
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
               StreamBuilder<List<Trip>>(
                 stream: TripService().fetchTrips(),  // Fetch trips in real-time
                 builder: (context, snapshot) {

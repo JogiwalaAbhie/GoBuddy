@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/travel_model.dart';
 import '../pages/place_detail.dart';
+import '../widgets/adminside_admintrip.dart';
 import '../widgets/popular_place.dart';
 
 class AdminTripsPage extends StatefulWidget {
@@ -68,7 +69,7 @@ class _AdminTripsPageState extends State<AdminTripsPage> {
                               ),
                             );
                           },
-                          child: AdminTripsWidget2(
+                          child: AdminSideAdminTripManage(
                             trip: trip, // Pass the trip to the widget
                           ),
                         ),

@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:gobuddy/Admin/admin_navigation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:lottie/lottie.dart';
 
 import '../const.dart';
 
@@ -288,13 +289,13 @@ class _AdminAddTripPageState extends State<AdminAddTripPage> {
   }
 
   String? validateStartDate() {
-    if (_startDate == null) return "Please select a start date";
+    if (_startDate == null) return "";
     return null;
   }
   // Validation for End Date
   String? validateEndDate() {
     if (_endDate == null) {
-      return "End Date is required";
+      return "";
     } else if (_startDate != null && _endDate!.isBefore(_startDate!)) {
       return "End Date must be after Start Date";
     }
@@ -433,6 +434,7 @@ class _AdminAddTripPageState extends State<AdminAddTripPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: kBackgroundColor,
       appBar: AppBar(
         title: Text("Host a Trip",
           style: TextStyle(color: Colors.white),
@@ -594,7 +596,7 @@ class _AdminAddTripPageState extends State<AdminAddTripPage> {
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                                   decoration: BoxDecoration(
-                                    color: Colors.white, // Default item background
+                                    color: kBackgroundColor, // Default item background
                                     border: Border(
                                       bottom: BorderSide(color: Colors.grey.shade300), // Border between items
                                     ),
@@ -862,7 +864,7 @@ class _AdminAddTripPageState extends State<AdminAddTripPage> {
                     ),
                     onPressed: _isLoading ? null : _saveTrip,
                     child:_isLoading
-                        ? CircularProgressIndicator(color: Colors.white,backgroundColor:Color(0xFF134277) ,)
+                        ? CircularProgressIndicator()
                         : Text("Host Trip", style: TextStyle(fontSize: 18,color: Colors.white)),
                   ),
                 ),
@@ -971,10 +973,10 @@ class _AdminAddTripPageState extends State<AdminAddTripPage> {
               if (errorText != null) // Display validation message if there's an error
                 Padding(
                   padding: const EdgeInsets.only(top: 5),
-                  // child: Text(
-                  //   errorText,
-                  //   style: TextStyle(color: Colors.red, fontSize: 12),
-                  // ),
+                  child: Text(
+                    errorText,
+                    style: TextStyle(color: Colors.red, fontSize: 12),
+                  ),
                 ),
             ],
           ),
@@ -1017,10 +1019,13 @@ class _AdminAddTripPageState extends State<AdminAddTripPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                time != null ? time.format(context) : "Select $label",
-                style: TextStyle(
-                  color: time != null ? Colors.black : Color(0xFF134277),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(0, 3, 0, 3),
+                child: Text(
+                  time != null ? time.format(context) : "Select $label",
+                  style: TextStyle(
+                    color: time != null ? Colors.black : Color(0xFF134277),
+                  ),
                 ),
               ),
             ],

@@ -7,6 +7,7 @@ import 'package:gobuddy/Admin/admin_navigation.dart';
 import 'package:gobuddy/const.dart';
 import 'package:gobuddy/screen/signup.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:lottie/lottie.dart';
 import '../pages/navigation_page.dart';
 
 class login extends StatefulWidget {
@@ -131,6 +132,7 @@ class _loginState extends State<login> {
             'email': user.email ?? "No Email",
             'phone': user.phoneNumber ?? "N/A",
             'uid': user.uid,
+            'role':'user',
             'profilePic': user.photoURL ?? "",
             'createdAt': FieldValue.serverTimestamp(),
           });
@@ -200,6 +202,7 @@ class _loginState extends State<login> {
               'email': user.email ?? "No Email",
               'phone': user.phoneNumber ?? "No Phone",
               'uid': user.uid,
+              'role':'user',
               'profilePic': user.photoURL ?? "",
               'createdAt': FieldValue.serverTimestamp(),
             });
@@ -379,7 +382,11 @@ class _loginState extends State<login> {
                     height: 30,
                   ),
                   if (isload)
-                    CircularProgressIndicator()
+                    Container(
+                        width: MediaQuery.of(context).size.width*0.8,
+                        height: 90,
+                        child: Lottie.asset("assets/animation/loadwithplane.json")
+                    )
                   else
                     Container(
                       width: MediaQuery.of(context).size.width*0.8,

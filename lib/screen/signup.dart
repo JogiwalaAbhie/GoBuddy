@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:gobuddy/screen/login.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:lottie/lottie.dart';
 import '../const.dart';
 import '../pages/navigation_page.dart';
 
@@ -54,6 +55,7 @@ class _signupState extends State<signup> {
             'phone' : _phoneController.text.trim(),
             'email': _emailController.text.trim(),
             'uid': user.uid,
+            'role':'user',
             'createdAt': FieldValue.serverTimestamp(),
           });
 
@@ -123,6 +125,7 @@ class _signupState extends State<signup> {
           'username': displayName,
           'phone': phoneNumber,
           'uid': userCredential.user!.uid,
+          'role':'user',
           'createdAt': FieldValue.serverTimestamp(),
           'profilePic': userCredential.user!.photoURL,
         });
@@ -169,6 +172,7 @@ class _signupState extends State<signup> {
           'email': userCredential.user!.email,
           'uid': userCredential.user!.uid,
           'phone': phoneNumber,
+          'role':'user',
           'profilePic': userCredential.user!.photoURL,
           'createdAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
@@ -402,7 +406,11 @@ class _signupState extends State<signup> {
                       height: 35,
                     ),
                     if (isload)
-                      CircularProgressIndicator()
+                      Container(
+                          width: MediaQuery.of(context).size.width*0.8,
+                          height: 90,
+                          child: Lottie.asset("assets/animation/loadwithplane.json")
+                      )
                     else
                       Container(
                         width: MediaQuery.of(context).size.width*0.8,

@@ -1,8 +1,7 @@
 import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:gobuddy/pages/onboard_travel.dart';
-
+import 'package:gobuddy/screen/splash.dart';
 
 
 void main() async{
@@ -14,7 +13,7 @@ void main() async{
       apiKey: 'AIzaSyAAqb54PkbP-L5atLFS0NRokMRgJL2MrQU',
       appId: '1:1015423722551:android:e3e3ba040120440579cbb2',
       messagingSenderId: '1015423722551',
-      projectId: 'gobuddy-at1435',)
+      projectId: 'gobuddy-at1435')
   )
   :await Firebase.initializeApp();
   runApp(const MyApp());
@@ -33,7 +32,7 @@ class MyApp extends StatelessWidget {
 
             ),
             title: 'Go Buddy',
-            home: TravelOnBoardingScreen()
+            home: SplashScreen()
         );
 
   }

@@ -1,10 +1,9 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:gobuddy/pages/place_detail.dart';
 import '../const.dart';
 import '../models/travel_model.dart';
 import '../widgets/recomendate.dart';
-import 'navigation_page.dart';
+
 
 class SearchTripPage extends StatefulWidget {
   @override

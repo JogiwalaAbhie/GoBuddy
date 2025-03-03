@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../const.dart';
 import '../models/travel_model.dart';
 import '../pages/place_detail.dart';
+import '../widgets/adminside_usertrips.dart';
 import '../widgets/recomendate.dart';
 import 'admin_navigation.dart';
 
@@ -14,6 +15,26 @@ class UserTripPage extends StatefulWidget {
 }
 
 class _UserTripPageState extends State<UserTripPage> {
+
+  List<Trip> trips = [];
+
+  @override
+  void initState() {
+    super.initState();
+    fetchTrips(); // Load trips when the page opens
+  }
+
+
+  Future<void> fetchTrips() async {
+    Stream<List<Trip>> fetchedTrips = TripService().fetchTrips(); // Fetch trips stream
+
+    fetchedTrips.listen((tripList) {
+      setState(() {
+        trips = tripList; // Update the UI when new data arrives
+      });
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -144,8 +165,9 @@ class _UserTripPageState extends State<UserTripPage> {
                                 ),
                               );
                             },
-                            child: AdminSideUserTrip(
-                              trip: trip,  // Pass the trip to the widget
+                            child: AdminSideUserTripManage(
+                              trip: trip,
+                              // Pass the trip to the widget
                             ),
                           ),
                         );
