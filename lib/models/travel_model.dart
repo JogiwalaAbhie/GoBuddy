@@ -33,6 +33,7 @@ class Trip {
   final List<String>? savedBy;
   final List<String> image;
   final bool popular;
+  int persons;
 
   Trip({
     required this.id,
@@ -61,6 +62,7 @@ class Trip {
     required this.hostId,
     required this.hostName,
     this.savedBy,
+    this.persons = 1,
     required this.image,
     required this.popular
   });
@@ -103,18 +105,18 @@ class Trip {
 
 }
 
-class TripService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
-  /// Fetch trips in real-time
-  Stream<List<Trip>> fetchTrips() {
-    return _firestore.collection('trips').snapshots().map((snapshot) {
-      return snapshot.docs.map((doc) {
-        return Trip.fromFirestore(doc);
-      }).toList();
-    });
-  }
-}
+// class TripService {
+//   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+//
+//
+//   Stream<List<Trip>> fetchTrips() {
+//     return _firestore.collection('trips').snapshots().map((snapshot) {
+//       return snapshot.docs.map((doc) {
+//         return Trip.fromFirestore(doc);
+//       }).toList();
+//     });
+//   }
+// }
 
 class MyTripService{
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -178,6 +180,17 @@ class AdminTripService {
     return FirebaseFirestore.instance
         .collection('trips')
         .where('tripRole', isEqualTo: 'admin')
+        .snapshots() // 👈 Listen for real-time updates
+        .map((snapshot) =>
+        snapshot.docs.map((doc) => Trip.fromFirestore(doc)).toList());
+  }
+}
+
+class UserTripService{
+  Stream<List<Trip>> fetchTrips() {
+    return FirebaseFirestore.instance
+        .collection('trips')
+        .where('tripRole', isEqualTo: 'user')
         .snapshots() // 👈 Listen for real-time updates
         .map((snapshot) =>
         snapshot.docs.map((doc) => Trip.fromFirestore(doc)).toList());

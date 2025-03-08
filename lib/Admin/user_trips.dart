@@ -21,19 +21,19 @@ class _UserTripPageState extends State<UserTripPage> {
   @override
   void initState() {
     super.initState();
-    fetchTrips(); // Load trips when the page opens
+    // fetchTrips(); // Load trips when the page opens
   }
 
 
-  Future<void> fetchTrips() async {
-    Stream<List<Trip>> fetchedTrips = TripService().fetchTrips(); // Fetch trips stream
-
-    fetchedTrips.listen((tripList) {
-      setState(() {
-        trips = tripList; // Update the UI when new data arrives
-      });
-    });
-  }
+  // Future<void> fetchTrips() async {
+  //   Stream<List<Trip>> fetchedTrips = TripService().fetchTrips(); // Fetch trips stream
+  //
+  //   fetchedTrips.listen((tripList) {
+  //     setState(() {
+  //       trips = tripList; // Update the UI when new data arrives
+  //     });
+  //   });
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -58,84 +58,8 @@ class _UserTripPageState extends State<UserTripPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.start,
             children: [
-              // const SizedBox(height: 20),
-              // const Padding(
-              //   padding: EdgeInsets.symmetric(horizontal: 15),
-              //   child: Row(
-              //     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              //     children: [
-              //       Text(
-              //         "Popular place",
-              //         style: TextStyle(
-              //           fontSize: 20,
-              //           fontWeight: FontWeight.w600,
-              //           color: Colors.black,
-              //         ),
-              //       ),
-              //       Text(
-              //         "See all",
-              //         style: TextStyle(
-              //           fontSize: 14,
-              //           color: blueTextColor,
-              //         ),
-              //       )
-              //     ],
-              //   ),
-              // ),
-              // const SizedBox(height: 15),
-              // SingleChildScrollView(
-              //   scrollDirection: Axis.horizontal,
-              //   padding: const EdgeInsets.only(bottom: 20),
-              //   child: Row(
-              // children: List.generate(
-              //   popular.length,
-              //       (index) => Padding(
-              //         padding: const EdgeInsets.all(8.0),
-              //         child: GestureDetector(
-              //           onTap: () {
-              //             Navigator.push(
-              //               context,
-              //               MaterialPageRoute(
-              //                 builder: (_) => PlaceDetailScreen(
-              //                   trip: popular[index],
-              //                 ),
-              //               ),
-              //             );
-              //           },
-              //           child: PopularPlace(
-              //             destination: popular[index],
-              //           ),
-              //         ),
-              //       ),
-              // ),
-              //   ),
-              // ),
-              // const Padding(
-              //   padding: EdgeInsets.symmetric(horizontal: 15),
-              //   child: Row(
-              //     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              //     children: [
-              //       Text(
-              //         "Recomendation for you",
-              //         style: TextStyle(
-              //           fontSize: 20,
-              //           fontWeight: FontWeight.w600,
-              //           color: Colors.black,
-              //         ),
-              //       ),
-              //       Text(
-              //         "See all",
-              //         style: TextStyle(
-              //           fontSize: 14,
-              //           color: blueTextColor,
-              //         ),
-              //       )
-              //     ],
-              //   ),
-              // ),
-              // const SizedBox(height: 20),
               StreamBuilder<List<Trip>>(
-                stream: TripService().fetchTrips(),  // Fetch trips in real-time
+                stream: UserTripService().fetchTrips(),  // Fetch trips in real-time
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return Center(child: CircularProgressIndicator());  // Show loading indicator

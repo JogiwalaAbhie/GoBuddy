@@ -9,6 +9,7 @@ import 'package:gobuddy/pages/place_detail.dart';
 import 'package:gobuddy/pages/saved_trip.dart';
 import 'package:gobuddy/pages/search_page.dart';
 import 'package:gobuddy/pages/setting.dart';
+import 'package:gobuddy/pages/user_booked_trip.dart';
 import 'package:gobuddy/pages/user_profile.dart';
 import 'package:iconsax/iconsax.dart';
 import '../const.dart';
@@ -128,6 +129,13 @@ class _TravelHomeScreenState extends State<TravelHomeScreen> {
               },
             ),
             ListTile(
+              leading: Icon(Iconsax.bag_tick),
+              title: Text("Booked Trip"),
+              onTap: (){
+                Navigator.push(context, MaterialPageRoute(builder: (context) => UserBookedTripsPage()));
+              },
+            ),
+            ListTile(
               leading: Icon(Iconsax.save_2),
               title: Text("Saved"),
               onTap: (){
@@ -189,157 +197,162 @@ class _TravelHomeScreenState extends State<TravelHomeScreen> {
           ],
         ),
       ),
-      body: SingleChildScrollView( // Wrap everything in a scrollable view
+      body: SingleChildScrollView(
+        // Wrap everything in a scrollable view
         child: Padding(
-          padding: const EdgeInsets.all(10.0),
+          padding: const EdgeInsets.all(10),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.start,
-            children: [
-              const SizedBox(height: 20),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 15),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      "Popular place",
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black,
+              mainAxisAlignment: MainAxisAlignment.start,
+              children: [
+                const SizedBox(height: 5),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 10),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "Popular place",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.black,
+                        ),
                       ),
-                    ),
-                    Text(
-                      "See all",
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: blueTextColor,
-                      ),
-                    )
-                  ],
+                      Text(
+                        "See all",
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: blueTextColor,
+                        ),
+                      )
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 15),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.only(bottom: 20),
-                child: StreamBuilder<List<Trip>>(
-                  // Use correct type
-                  stream: PopularTripService().fetchPopularTrips(),
+                const SizedBox(height: 12),
+                //admin trips
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: StreamBuilder<List<Trip>>(
+                    // Use correct type
+                    stream: PopularTripService().fetchPopularTrips(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(
+                            child:
+                            CircularProgressIndicator()); // Show loading indicator
+                      }
+
+                      if (snapshot.hasError) {
+                        return Center(
+                            child:
+                            Text("Error: ${snapshot.error}")); // Handle error
+                      }
+
+                      if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                        return const Center(
+                            child: Text("No trips found.")); // Handle empty data
+                      }
+
+                      final adminTrips = snapshot.data!; // Get trip list
+
+                      return Row(
+                        children: adminTrips.map((trip) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 15),
+                            child: GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => PlaceDetailScreen(
+                                      trip: trip, // Pass selected trip to the detail screen
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: PopularTripWidget(
+                                trip: trip, // Pass the trip to the widget
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 5),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 10),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "Recommendation for you",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.black,
+                        ),
+                      ),
+                      Text(
+                        "See all",
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: blueTextColor,
+                        ),
+                      )
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                //user trips
+                StreamBuilder<List<Trip>>(
+                  stream: RecommendationTripService().fetchRecommendationTrips(), // Fetch trips in real-time
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(
-                          child:
-                          CircularProgressIndicator()); // Show loading indicator
+                      return Center(child: CircularProgressIndicator()); // Show loading indicator
                     }
 
                     if (snapshot.hasError) {
-                      return Center(
-                          child:
-                          Text("Error: ${snapshot.error}")); // Handle error
+                      return Center(child: Text("Error loading trips: ${snapshot.error}"));
                     }
 
                     if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                      return const Center(
-                          child: Text("No trips found.")); // Handle empty data
+                      return Center(child: Text("No trips found.")); // Handle empty data
                     }
 
-                    final adminTrips = snapshot.data!; // Get trip list
+                    final trips = snapshot.data!; // Get the trip data
 
-                    return Row(
-                      children: adminTrips.map((trip) {
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 15),
-                          child: GestureDetector(
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => PlaceDetailScreen(
-                                    trip:
-                                    trip, // Pass selected trip to the detail screen
-                                  ),
+                    return SingleChildScrollView(  // Fix overflow issue
+                      child: Column(
+                        children: List.generate(
+                          trips.length,
+                              (index) {
+                            final trip = trips[index]; // Get trip at this index
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 15),
+                              child: GestureDetector(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => PlaceDetailScreen(trip: trip),
+                                    ),
+                                  );
+                                },
+                                child: RecomTripWidget(
+                                  trip: trip,
                                 ),
-                              );
-                            },
-                            child: PopularTripWidget(
-                              destination: trip, // Pass the trip to the widget
-                            ),
-                          ),
-                        );
-                      }).toList(),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                     );
                   },
+
                 ),
-              ),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 15),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      "Recomendation for you",
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black,
-                      ),
-                    ),
-                    Text(
-                      "See all",
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: blueTextColor,
-                      ),
-                    )
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-              StreamBuilder<List<Trip>>(
-                stream: TripService().fetchTrips(),  // Fetch trips in real-time
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return Center(child: CircularProgressIndicator());  // Show loading indicator
-                  }
-
-                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return Center(child: Text("No trips found."));  // Handle empty data
-                  }
-
-                  final recomendate = snapshot.data!;  // Get the trip data
-
-                  return Column(
-                    children: List.generate(
-                      recomendate.length,
-                          (index) {
-                        final trip = recomendate[index];  // Get trip at this index
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 15),
-                          child: GestureDetector(
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => PlaceDetailScreen(
-                                    trip: trip,  // Pass selected trip to the detail screen
-                                  ),
-                                ),
-                              );
-                            },
-                            child: TripWidget(
-                              destination: trip,  // Pass the trip to the widget
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  );
-                },
-              ),
-
-              // You can add more widgets here as needed.
-            ],
+              ]
           ),
         ),
       ),

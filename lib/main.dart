@@ -31,7 +31,7 @@ class MyApp extends StatelessWidget {
               fontFamily: 'Rubik',
 
             ),
-            title: 'Go Buddy',
+            title: 'GoBuddy',
             home: SplashScreen()
         );
 

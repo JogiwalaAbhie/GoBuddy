@@ -4,8 +4,8 @@ import 'package:gobuddy/const.dart';
 import '../models/travel_model.dart';
 
 class PopularTripWidget extends StatelessWidget {
-  final Trip destination;
-  const PopularTripWidget({super.key, required this.destination});
+  final Trip trip;
+  const PopularTripWidget({super.key, required this.trip});
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +40,7 @@ class PopularTripWidget extends StatelessWidget {
                 image: DecorationImage(
                   fit: BoxFit.cover,
                   image: NetworkImage(
-                    destination.image[0],
+                    trip.image[0],
                   ),
                 ),
               ),
@@ -59,7 +59,7 @@ class PopularTripWidget extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                destination.name,
+                                trip.name,
                                 style: const TextStyle(
                                   fontSize: 16,
                                   color: Colors.white,
@@ -76,7 +76,7 @@ class PopularTripWidget extends StatelessWidget {
                                   ),
                                   const SizedBox(width: 5),
                                   Text(
-                                    destination.location,
+                                    trip.location,
                                     style: TextStyle(
                                       color: Colors.white,
                                       fontWeight: FontWeight.w200,
@@ -95,7 +95,7 @@ class PopularTripWidget extends StatelessWidget {
                               ),
                               const SizedBox(width: 5),
                               Text(
-                                destination.rate.toStringAsFixed(2),
+                                trip.rate.toStringAsFixed(2),
                                 style: const TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.bold,

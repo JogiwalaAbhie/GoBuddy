@@ -105,8 +105,8 @@ class _SearchTripPageState extends State<SearchTripPage> {
                                       ),
                                     );
                                   },
-                                  child: TripWidget(
-                                    destination: trip,  // Pass the trip to the widget
+                                  child: RecomTripWidget(
+                                    trip: trip,  // Pass the trip to the widget
                                   ),
                                 ),
                               );

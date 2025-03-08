@@ -158,8 +158,8 @@ class _MyTripState extends State<MyTrip> {
                                 ),
                               );
                             },
-                            child: TripWidget(
-                              destination: trip,  // Pass the trip to the widget
+                            child: RecomTripWidget(
+                              trip: trip,  // Pass the trip to the widget
                             ),
                           ),
                         );

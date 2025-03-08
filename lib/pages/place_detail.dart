@@ -235,21 +235,40 @@ ${widget.trip.image.isNotEmpty ? widget.trip.image.first : "No image available"}
     );
   }
 
-  void addToCart(String tripId, String tripTitle, String destination, double pricePerPerson) async {
-    CollectionReference cartRef = FirebaseFirestore.instance.collection('cart');
+  Future<void> addToCart(Trip trip, BuildContext context) async {
+    String userId = FirebaseAuth.instance.currentUser!.uid;
+    CollectionReference cartRef = FirebaseFirestore.instance
+        .collection('cart')
+        .doc(userId)
+        .collection('cartItems');
 
-    await cartRef.doc(tripId).set({ // Use tripId to prevent duplicates
-      'tripId': tripId,
-      'tripTitle': tripTitle,
-      'destination': destination,
-      'pricePerPerson': pricePerPerson,
-      'personCount': 1, // Default to 1 person
-      'timestamp': FieldValue.serverTimestamp(), // Timestamp to track order
-    });
+    DocumentSnapshot tripSnapshot = await cartRef.doc(trip.id).get();
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Trip added to cart!')),
-    );
+    if (tripSnapshot.exists) {
+      // Trip already in cart, update person count and total price
+      int existingPersons = tripSnapshot['persons'];
+      int newPersons = existingPersons + 1;
+      double newTotalPrice = newPersons * trip.price;
+
+      await cartRef.doc(trip.id).update({
+        'persons': newPersons,
+        'totalPrice': newTotalPrice,
+      });
+    } else {
+      // Add trip to cart for the first time
+      await cartRef.doc(trip.id).set({
+        'tripId':trip.id,
+        'userId':userId,
+        'title': trip.name,
+        'destination': trip.location,
+        'tripFee': trip.price,
+        'imageUrl': trip.image.isNotEmpty ? trip.image[0] : null, // First image
+        'persons': 1, // Default is 1 person
+        'totalPrice': trip.price,
+        "status": "Pending",// 1 * tripFee
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+    }
 
     // Navigate to AddToCartPage after adding the trip
     Navigator.push(
@@ -257,6 +276,7 @@ ${widget.trip.image.isNotEmpty ? widget.trip.image.first : "No image available"}
       MaterialPageRoute(builder: (context) => AddToCartPage()),
     );
   }
+
 
 
   @override
@@ -1310,12 +1330,7 @@ ${widget.trip.image.isNotEmpty ? widget.trip.image.first : "No image available"}
 
             TextButton(
               onPressed: () {
-                addToCart(
-                  widget.trip.id, // Use Firestore trip ID
-                  widget.trip.name, // Trip Title from Firestore
-                  widget.trip.location, // Destination from Firestore
-                  widget.trip.price, // Price per person
-                );
+                addToCart(widget.trip, context);
               },
               child: Container(
                 padding: const EdgeInsets.symmetric(
@@ -1486,6 +1501,9 @@ class _ReportTripCardState extends State<ReportTripCard> {
         ? _otherReasonController.text
         : _selectedReason!;
 
+    String reason = _selectedReason!;
+
+
     // Get the current user ID
     String userId = FirebaseAuth.instance.currentUser!.uid;
 
@@ -1506,7 +1524,8 @@ class _ReportTripCardState extends State<ReportTripCard> {
         'reportId': reportId,
         'tripId': widget.trip.id,
         'userId': userId,
-        'reason': finalReason,
+        'reason': reason,
+        'finalReason': finalReason,
         'timestamp': FieldValue.serverTimestamp(),
       });
 

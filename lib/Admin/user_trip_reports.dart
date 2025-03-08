@@ -35,8 +35,10 @@ class _UserTripReportsPageState extends State<UserTripReportsPage> {
           QuerySnapshot reportsSnapshot =
           await tripDoc.reference.collection('reports').get();
 
+
           for (var reportDoc in reportsSnapshot.docs) {
             String reason = reportDoc['reason'] ?? 'No reason provided';
+            String finalreason = reportDoc['finalReason'] ?? 'No reason provided';
             String reportId = reportDoc.id;
             Timestamp timestamp = reportDoc['timestamp'];
             String userId = reportDoc['userId'] ?? '';
@@ -58,24 +60,13 @@ class _UserTripReportsPageState extends State<UserTripReportsPage> {
               }
             }
 
-            /// **Final Filtering Logic**
-            if (selectedIssue != null && selectedIssue != "All Issues") {
-              if (selectedIssue == "Other issues") {
-                // ✅ Exclude predefined reasons & fetch only custom reasons
-                if (["Inappropriate content", "Misleading information", "Scam or fraud"]
-                    .contains(reason)) {
-                  continue; // Skip these predefined issues
-                }
-              } else if (selectedIssue != reason) {
-                continue; // Show only selected issue
-              }
-            }
 
             tripReports.add({
               'tripId': tripId,
               'tripTitle': tripTitle,
               'destination': destination,
               'firstImage': firstImage,
+              'finalReason' : finalreason,
               'reason': reason,
               'reportId': reportId,
               'timestamp': formattedDate,
@@ -104,7 +95,7 @@ class _UserTripReportsPageState extends State<UserTripReportsPage> {
                 groupValue: selectedIssue,
                 onChanged: (value) {
                   setState(() {
-                    selectedIssue = value as String?;
+                    selectedIssue = value;
                   });
                   Navigator.pop(context);
                 },
@@ -207,7 +198,7 @@ class _UserTripReportsPageState extends State<UserTripReportsPage> {
                           ),
                           SizedBox(height: 5),
                           Text(
-                            "Reason: ${report['reason']}",
+                            "Reason: ${report['finalReason']}",
                             style: TextStyle(
                               fontSize: 15,
                               color: Colors.red,

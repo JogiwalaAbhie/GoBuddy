@@ -3,9 +3,9 @@ import '../const.dart';
 import '../models/travel_model.dart';
 
 
-class TripWidget  extends StatelessWidget {
-  final Trip destination;
-  const TripWidget({Key? key, required this.destination}) : super(key: key);
+class RecomTripWidget  extends StatelessWidget {
+  final Trip trip;
+  const RecomTripWidget({Key? key, required this.trip}) : super(key: key);
 
 
   @override
@@ -37,7 +37,7 @@ class TripWidget  extends StatelessWidget {
                 image: DecorationImage(
                   fit: BoxFit.cover,
                   image: NetworkImage(
-                    destination.image[0],
+                    trip.image[0],
                   ),
                 ),
               ),
@@ -50,7 +50,7 @@ class TripWidget  extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      destination.name,
+                      trip.name,
                       style: const TextStyle(
                         fontSize: 16,
                         color: Colors.black,
@@ -66,7 +66,7 @@ class TripWidget  extends StatelessWidget {
                           size: 16,
                         ),
                         Text(
-                          destination.location,
+                          trip.location,
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.black.withOpacity(0.6),
@@ -79,7 +79,7 @@ class TripWidget  extends StatelessWidget {
                       children: [
                         Text("Day : ", style: TextStyle(fontSize: 14,fontWeight: FontWeight.w500,color: Colors.black,),),
                         SizedBox(width: 5,),
-                        Text("${destination.daysOfTrip}",style: TextStyle(
+                        Text("${trip.daysOfTrip}",style: TextStyle(
                           fontWeight: FontWeight.w400,
                           fontSize: 12,
                           color: Colors.black
@@ -98,7 +98,7 @@ class TripWidget  extends StatelessWidget {
                   TextSpan(
                     children: [
                       TextSpan(
-                        text: "\₹ ${destination.price}",
+                        text: "\₹ ${trip.price}",
                         style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w500,

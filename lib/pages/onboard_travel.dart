@@ -123,7 +123,7 @@ class _TravelOnBoardingScreenState extends State<TravelOnBoardingScreen>{
           Align(
             alignment: Alignment.bottomCenter,
             child: Column(
-              mainAxisSize: MainAxisSize.min, // Allows the Column to take only required space
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,

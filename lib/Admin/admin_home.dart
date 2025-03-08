@@ -4,12 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:gobuddy/Admin/admin_navigation.dart';
 import 'package:gobuddy/Admin/admin_profile.dart';
 import 'package:gobuddy/Admin/admin_trips.dart';
+import 'package:gobuddy/Admin/booked_trip.dart';
 import 'package:gobuddy/Admin/user_trip_reports.dart';
 import 'package:gobuddy/Admin/user_trips.dart';
 import 'package:iconsax/iconsax.dart';
 
 import '../const.dart';
 import '../models/travel_model.dart';
+import '../pages/add_to_cart.dart';
 import '../pages/onboard_travel.dart';
 import '../pages/place_detail.dart';
 import '../pages/setting.dart';
@@ -32,19 +34,19 @@ class _AdminHomePageState extends State<AdminHomePage> {
   @override
   void initState() {
     super.initState();
-    fetchTrips(); // Load trips when the page opens
+    //fetchTrips(); // Load trips when the page opens
   }
 
 
-  Future<void> fetchTrips() async {
-    Stream<List<Trip>> fetchedTrips = TripService().fetchTrips(); // Fetch trips stream
-
-    fetchedTrips.listen((tripList) {
-      setState(() {
-        trips = tripList; // Update the UI when new data arrives
-      });
-    });
-  }
+  // Future<void> fetchTrips() async {
+  //   Stream<List<Trip>> fetchedTrips = TripService().fetchTrips(); // Fetch trips stream
+  //
+  //   fetchedTrips.listen((tripList) {
+  //     setState(() {
+  //       trips = tripList; // Update the UI when new data arrives
+  //     });
+  //   });
+  // }
 
 
   @override
@@ -57,6 +59,34 @@ class _AdminHomePageState extends State<AdminHomePage> {
         ),
         backgroundColor: const Color(0xFF134277),
         foregroundColor: Colors.white,
+        actions: [
+          Container(
+            height: MediaQuery.of(context).size.height*0.05,
+            width: 45,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(
+                color: Colors.white60,
+              ),
+            ),
+            padding: const EdgeInsets.all(0),
+            child: Stack(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.shopping_cart,color: Colors.white,), // Cart icon
+                  onPressed: () {
+                    // Navigate to Add to Cart page
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => AddToCartPage()),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+        ],
       ),
       drawer: Drawer(
         backgroundColor: kBackgroundColor,
@@ -184,6 +214,16 @@ class _AdminHomePageState extends State<AdminHomePage> {
                     context,
                     MaterialPageRoute(
                         builder: (context) => UserTripReportsPage()));
+              },
+            ),
+            ListTile(
+              leading: Icon(Iconsax.receipt_add),
+              title: Text("Booked Trips"),
+              onTap: () {
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => AdminBookedTripsPage()));
               },
             ),
             ListTile(

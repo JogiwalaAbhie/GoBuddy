@@ -143,8 +143,8 @@ class _savedTripPageState extends State<savedTripPage> {
                                 ),
                               );
                             },
-                            child: TripWidget(
-                              destination: trip,  // Pass the trip to the widget
+                            child: RecomTripWidget(
+                              trip: trip,  // Pass the trip to the widget
                             ),
                           ),
                         );
