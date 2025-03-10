@@ -116,3 +116,37 @@ class _FirstScreenState extends State<FirstScreen> {
     );
   }
 }
+
+
+import 'package:flutter/material.dart';
+
+class SecondScreen extends StatelessWidget {
+  final String parent;
+  final List<String> childList;
+
+  SecondScreen({required this.parent, required this.childList});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Children of $parent')),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: childList.isEmpty
+            ? Center(child: Text("No child data found for $parent"))
+            : ListView.builder(
+                itemCount: childList.length,
+                itemBuilder: (context, index) {
+                  return Card(
+                    elevation: 4,
+                    margin: EdgeInsets.symmetric(vertical: 8),
+                    child: ListTile(
+                      title: Text(childList[index]),
+                    ),
+                  );
+                },
+              ),
+      ),
+    );
+  }
+}
