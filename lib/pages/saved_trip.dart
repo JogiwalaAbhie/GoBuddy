@@ -1,27 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:gobuddy/pages/place_detail.dart';
+import 'package:gobuddy/pages/user_trips_details.dart';
 
 import '../models/travel_model.dart';
 import '../widgets/recomendate.dart';
+import '../widgets/userside_usertripedit.dart';
 
-class savedTripPage extends StatefulWidget {
-  const savedTripPage({super.key});
+import 'package:flutter/material.dart';
+
+class SavedTripPage extends StatefulWidget {
+  const SavedTripPage({super.key});
 
   @override
-  State<savedTripPage> createState() => _savedTripPageState();
+  State<SavedTripPage> createState() => _SavedTripPageState();
 }
 
-class _savedTripPageState extends State<savedTripPage> {
-
-
+class _SavedTripPageState extends State<SavedTripPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         elevation: 5,
-        backgroundColor: Color(0xFF134277),
+        backgroundColor: const Color(0xFF134277),
         foregroundColor: Colors.white,
-        title:const Text(
+        title: const Text(
           "Saved Trip",
           style: TextStyle(
             fontWeight: FontWeight.w600,
@@ -32,120 +34,56 @@ class _savedTripPageState extends State<savedTripPage> {
       ),
       body: SingleChildScrollView(
         child: Padding(
-          padding: const EdgeInsets.all(10.0),
+          padding: const EdgeInsets.all(14.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.start,
             children: [
-              // const SizedBox(height: 20),
-              // const Padding(
-              //   padding: EdgeInsets.symmetric(horizontal: 15),
-              //   child: Row(
-              //     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              //     children: [
-              //       Text(
-              //         "Popular place",
-              //         style: TextStyle(
-              //           fontSize: 20,
-              //           fontWeight: FontWeight.w600,
-              //           color: Colors.black,
-              //         ),
-              //       ),
-              //       Text(
-              //         "See all",
-              //         style: TextStyle(
-              //           fontSize: 14,
-              //           color: blueTextColor,
-              //         ),
-              //       )
-              //     ],
-              //   ),
-              // ),
-              // const SizedBox(height: 15),
-              // SingleChildScrollView(
-              //   scrollDirection: Axis.horizontal,
-              //   padding: const EdgeInsets.only(bottom: 20),
-              //   child: Row(
-              // children: List.generate(
-              //   popular.length,
-              //       (index) => Padding(
-              //         padding: const EdgeInsets.all(8.0),
-              //         child: GestureDetector(
-              //           onTap: () {
-              //             Navigator.push(
-              //               context,
-              //               MaterialPageRoute(
-              //                 builder: (_) => PlaceDetailScreen(
-              //                   trip: popular[index],
-              //                 ),
-              //               ),
-              //             );
-              //           },
-              //           child: PopularPlace(
-              //             destination: popular[index],
-              //           ),
-              //         ),
-              //       ),
-              // ),
-              //   ),
-              // ),
-              // const Padding(
-              //   padding: EdgeInsets.symmetric(horizontal: 15),
-              //   child: Row(
-              //     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              //     children: [
-              //       Text(
-              //         "Recomendation for you",
-              //         style: TextStyle(
-              //           fontSize: 20,
-              //           fontWeight: FontWeight.w600,
-              //           color: Colors.black,
-              //         ),
-              //       ),
-              //       Text(
-              //         "See all",
-              //         style: TextStyle(
-              //           fontSize: 14,
-              //           color: blueTextColor,
-              //         ),
-              //       )
-              //     ],
-              //   ),
-              // ),
-              // const SizedBox(height: 20),
               StreamBuilder<List<Trip>>(
                 stream: SavedTripService().fetchSavedTrips(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return Center(child: CircularProgressIndicator());
+                    return const Center(child: CircularProgressIndicator());
                   }
 
                   if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return Center(child: Text("It looks like you haven't Saved any trips yet.."));
+                    return const Center(
+                      child: Text(
+                        "It looks like you haven't saved any trips yet..",
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w400),
+                      ),
+                    );
                   }
 
-                  final recomendate  = snapshot.data!;
+                  final savedTrips = snapshot.data!;
 
                   return Column(
                     children: List.generate(
-                      recomendate.length,
+                      savedTrips.length,
                           (index) {
-                        final trip = recomendate[index];  // Get trip at this index
+                        final trip = savedTrips[index]; // Get trip at this index
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 15),
                           child: GestureDetector(
                             onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => PlaceDetailScreen(
-                                    trip: trip,  // Pass selected trip to the detail screen
+                              if (trip.role == 'admin') {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => PlaceDetailScreen(trip: trip),
                                   ),
-                                ),
-                              );
+                                );
+                              } else {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => UserTripsDetails(trip: trip),
+                                  ),
+                                );
+                              }
                             },
-                            child: RecomTripWidget(
-                              trip: trip,  // Pass the trip to the widget
-                            ),
+                            child: trip.role == 'admin'
+                                ? RecomTripWidget(trip: trip) // Show Admin widget
+                                : UserTripWidget(trip: trip), // Show User widget
                           ),
                         );
                       },
@@ -153,6 +91,7 @@ class _savedTripPageState extends State<savedTripPage> {
                   );
                 },
               ),
+
             ],
           ),
         ),

@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:gobuddy/Admin/admin_home.dart';
 import 'package:gobuddy/Admin/admin_trips.dart';
 import 'package:http/http.dart' as http;
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -10,7 +9,6 @@ import 'package:flutter/material.dart';
 import 'package:gobuddy/Admin/admin_navigation.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:image_picker/image_picker.dart';
-
 import '../const.dart';
 import '../pages/help_and_supprt.dart';
 import '../pages/onboard_travel.dart';
@@ -28,6 +26,7 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+
   bool _isEditing = false;  // To control edit mode
   String _username = '';
   String _email = '';
@@ -35,10 +34,11 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
   final _formKey = GlobalKey<FormState>();
 
   String? profileImageUrl;
-  bool _isUploading = false;
 
   final String cloudName = "dz0shhr6k";  // Your Cloudinary cloud name
-  final String uploadPreset = "gobuddy-images";  // Your Cloudinary upload preset
+  final String uploadPreset = "gobuddy-images";
+  final String apiKey = '763225618255152'; // Your Cloudinary API Key
+  final String apiSecret = 'DFCYPhLVFLb8pdNwwopUAPM_i8w';// Your Cloudinary upload preset
 
   Future<void> fetchProfileImageUrl() async {
     String userId = FirebaseAuth.instance.currentUser?.uid ?? "";
@@ -57,14 +57,12 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
     final pickedFile = await ImagePicker().pickImage(source: ImageSource.gallery);
     if (pickedFile == null) return;
 
-    setState(() => _isUploading = true);
-
     // Get the current image URL from Firestore to delete it
     String? currentImageUrl = profileImageUrl;
 
     // Delete the current image if it exists
     if (currentImageUrl != null && currentImageUrl.isNotEmpty) {
-      await deleteImageFromCloudinary(currentImageUrl);
+      await deleteProfilePhoto();
     }
 
     // Upload the new image to Cloudinary
@@ -75,7 +73,6 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
       await updateProfileImageUrl(newImageUrl);
     }
 
-    setState(() => _isUploading = false);
   }
 
   // Function to upload image to Cloudinary
@@ -137,19 +134,12 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
 
   Future<void> deleteImageFromCloudinary(String publicId) async {
     final String cloudName = 'dz0shhr6k'; // Your Cloudinary cloud name
-    final String apiKey = '763225618255152'; // Your Cloudinary API Key
-    final String apiSecret = 'DFCYPhLVFLb8pdNwwopUAPM_i8w'; // Your Cloudinary API Secret
-
-    // Generate timestamp
     final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
 
-    // Prepare the string to sign
+    // Generate the signature
     final signatureString = 'public_id=$publicId&timestamp=$timestamp$apiSecret';
-
-    // Generate the signature using SHA-1
     final signature = generateSignature(signatureString);
 
-    // Build the URL and body for the API request
     final uri = Uri.parse("https://api.cloudinary.com/v1_1/$cloudName/image/destroy");
 
     final response = await http.post(
@@ -163,7 +153,7 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
     );
 
     if (response.statusCode == 200) {
-      print("Image deleted from Cloudinary");
+      print("Image deleted successfully from Cloudinary.");
     } else {
       print("Failed to delete image from Cloudinary: ${response.body}");
     }
@@ -175,7 +165,6 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
     final digest = sha1.convert(bytes);
     return digest.toString();
   }
-
 
 // Helper function to extract public_id from Cloudinary URL
   String? extractPublicId(String imageUrl) {

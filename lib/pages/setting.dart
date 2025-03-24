@@ -5,6 +5,9 @@ import 'package:gobuddy/const.dart';
 import 'package:gobuddy/pages/onboard_travel.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:intl/intl.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsPage extends StatefulWidget {
   @override
@@ -12,9 +15,45 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  bool _darkMode = false;
-  bool _tripUpdates = true;
-  bool _chatNotifications = true;
+
+  bool _isNotificationEnabled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNotificationSetting();
+    _checkAndUpdateNotification(); // Ensure sync with system settings
+  }
+
+  // Load stored notification setting from SharedPreferences
+  Future<void> _loadNotificationSetting() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    bool isEnabled = prefs.getBool('notifications_enabled') ?? false;
+    setState(() {
+      _isNotificationEnabled = isEnabled;
+    });
+  }
+
+  // Save notification setting to SharedPreferences
+  Future<void> _saveNotificationSetting(bool value) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('notifications_enabled', value);
+    setState(() {
+      _isNotificationEnabled = value;
+    });
+  }
+
+  // Check permission status and update the toggle
+  Future<void> _checkAndUpdateNotification() async {
+    var status = await Permission.notification.status;
+    bool isGranted = status.isGranted;
+
+    setState(() {
+      _isNotificationEnabled = isGranted;
+    });
+
+    await _saveNotificationSetting(isGranted); // Save updated status
+  }
 
   void _confirmDeleteAccount(BuildContext context) {
     showDialog(
@@ -40,7 +79,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-
   Future<void> _deleteUserAccount() async {
     try {
       User? user = FirebaseAuth.instance.currentUser;
@@ -63,10 +101,11 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+
     return Scaffold(
       appBar: AppBar(
         foregroundColor: Colors.white,
-        title: const Text("Settings",
+        title: Text("Settings",
           style: TextStyle(color: Colors.white),),
         backgroundColor: const Color(0xFF134277),
       ),
@@ -88,12 +127,23 @@ class _SettingsPageState extends State<SettingsPage> {
 
           // Notification Settings
           _buildSectionTitle('Notifications'),
-          _buildSwitchTile('Trip Updates', _tripUpdates, (val) {
-            setState(() => _tripUpdates = val);
-          }),
-          _buildSwitchTile('Chat Alerts', _chatNotifications, (val) {
-            setState(() => _chatNotifications = val);
-          }),
+          SwitchListTile(
+            title: Text("Enable Notifications"),
+            value: _isNotificationEnabled,
+            onChanged: (bool value) async {
+              if (value) {
+                var status = await Permission.notification.request();
+                if (status.isGranted) {
+                  _saveNotificationSetting(true);
+                } else {
+                  _saveNotificationSetting(false);
+                }
+              } else {
+                _saveNotificationSetting(false);
+              }
+              _checkAndUpdateNotification(); // Re-check and update toggle
+            },
+          ),
 
           Divider(),
 
@@ -104,16 +154,6 @@ class _SettingsPageState extends State<SettingsPage> {
           }),
           _buildSettingsTile(Icons.lock_outline, 'Who Can See My Trips?', () {
             Navigator.push(context, MaterialPageRoute(builder: (context) => WhoCanSeeMyTripsPage()));
-          }),
-
-          Divider(),
-
-          // Preferences
-          _buildSectionTitle('Preferences'),
-          _buildSettingsTile(Icons.language, 'Language', () {}),
-          _buildSettingsTile(Icons.monetization_on, 'Currency Selection', () {}),
-          _buildSwitchTile('Dark Mode', _darkMode, (val) {
-            setState(() => _darkMode = val);
           }),
 
           Divider(),

@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart';
+import 'package:workmanager/workmanager.dart';
 
 import '../const.dart';
-import 'booked_trip_details.dart';
+import '../models/notification_model.dart';
+import '../models/work_manager_model.dart';
+import 'user_booked_trip_details.dart';
 
 class UserBookedTripsPage extends StatefulWidget {
   @override
@@ -14,6 +18,7 @@ class _UserBookedTripsPageState extends State<UserBookedTripsPage> {
   List<Map<String, dynamic>> groupedBookings = [];
   bool isLoading = true;
   String? userId;
+  String? tripid;
 
 
   @override
@@ -33,63 +38,120 @@ class _UserBookedTripsPageState extends State<UserBookedTripsPage> {
     }
   }
 
-  /// Fetch booked trips for the current user
   Future<void> fetchUserBookedTrips(String userId) async {
     try {
+      setState(() => isLoading = true); // Start loading
+
       List<Map<String, dynamic>> bookingsList = [];
 
-      var userBookingsRef = FirebaseFirestore.instance
+      // Fetch only the current user's booked trips
+      var bookingsSnapshot = await FirebaseFirestore.instance
           .collection('booked_trip')
-          .doc(userId)
-          .collection('bookings');
-
-      var bookingsSnapshot = await userBookingsRef.get();
+          .where('userId', isEqualTo: userId)
+          .get();
 
       if (bookingsSnapshot.docs.isEmpty) {
-        setState(() => isLoading = false);
+        setState(() {
+          groupedBookings = [];
+          isLoading = false;
+        });
         return;
       }
 
       for (var bookingDoc in bookingsSnapshot.docs) {
         Map<String, dynamic> bookingData = bookingDoc.data();
 
-        // 🛠 Fetch totalFee from bookings collection
-        double totalFee = (bookingData["totalFee"] is int)
-            ? (bookingData["totalFee"] as int).toDouble()
-            : (bookingData["totalFee"] ?? 0).toDouble();
+        // Directly fetch trip details from the booking document
+        String tripId = bookingData["tripId"];
+        String destination = bookingData["destination"] ?? "Unknown";
+        String from = bookingData["from"] ?? "Unknown";
+        String to = bookingData["to"] ?? "Unknown";
+        int adults = bookingData["adults"] ?? 1;
+        int children = bookingData["children"] ?? 1;
+        int totalPerson = adults + children;
+        double totalAmount = bookingData["totalAmount"] ?? 0.0;
 
-        var tripsSnapshot = await bookingDoc.reference.collection('trips').get();
+        // Initialize bookingDateTimestamp with a default value
+        Timestamp bookingDateTimestamp = Timestamp.now();  // Default value
 
-        List<Map<String, dynamic>> trips = [];
-
-        for (var tripDoc in tripsSnapshot.docs) {
-          Map<String, dynamic> tripData = tripDoc.data();
-
-          trips.add({
-            "tripId": tripDoc.id,
-            "title": tripData["title"] ?? "No Title",
-            "destination": tripData["destination"] ?? "Unknown",
-            "person": tripData["person"] ?? 1,
-          });
+        // Handling the timestamp conversion
+        dynamic bookingDate = bookingData["timestamp"];
+        if (bookingDate is Timestamp) {
+          bookingDateTimestamp = bookingDate;
+        } else if (bookingDate is String) {
+          try {
+            // If the bookingDate is a string, try parsing it as a DateTime
+            DateTime parsedDate = DateTime.parse(bookingDate);
+            bookingDateTimestamp = Timestamp.fromDate(parsedDate);
+          } catch (e) {
+            print("❌ Error parsing timestamp string: $e");
+          }
+        } else if (bookingDate is DateTime) {
+          // If the timestamp is already a DateTime object
+          bookingDateTimestamp = Timestamp.fromDate(bookingDate);
         }
+
+        // Fetch participants data from the array in the booking document
+        List<dynamic> participantsList = bookingData["participants"] ?? [];
+
+        // Map participants data to a list of participant details
+        List<Map<String, dynamic>> participants = participantsList.map((participant) {
+          return {
+            "name": participant["name"] ?? "Unknown",
+            "age": participant["age"] ?? 0,
+            "phone": participant["phone"] ?? "Unknown",
+            "gender": participant["gender"] ?? "Unknown",
+          };
+        }).toList();
 
         bookingsList.add({
           "bookingId": bookingDoc.id,
-          "totalFee": totalFee, // ✅ Assign totalFee
-          "trips": trips, // ✅ Store all trips inside a list
+          "tripId": tripId,
+          "from": from,
+          "to": to,
+          "destination": destination,
+          "person": totalPerson,
+          "adults": adults,
+          "children": children,
+          "totalAmount": totalAmount,
+          "bookingDate": bookingDateTimestamp,
+          "participants": participants, // Include participants in the result
         });
+
       }
 
       setState(() {
         groupedBookings = bookingsList;
         isLoading = false;
       });
-
     } catch (e) {
       print("❌ Error fetching booked trips: $e");
       setState(() => isLoading = false);
     }
   }
+
+  String formatTimestamp(dynamic timestamp) {
+    if (timestamp == null) return "No Date Available";
+
+    try {
+      if (timestamp is Timestamp) {
+        DateTime dateTime = timestamp.toDate();
+        return DateFormat('dd MMM yyyy, hh:mm a').format(dateTime);
+        // Example: 12 Mar 2025, 10:30 AM
+      } else if (timestamp is String) {
+        DateTime dateTime = DateTime.parse(timestamp);
+        return DateFormat('dd MMM yyyy, hh:mm a').format(dateTime);
+      } else if (timestamp is int) {
+        DateTime dateTime = DateTime.fromMillisecondsSinceEpoch(timestamp);
+        return DateFormat('dd MMM yyyy, hh:mm a').format(dateTime);
+      }
+    } catch (e) {
+      print("❌ Error formatting date & time: $e");
+    }
+
+    return "Invalid Date";
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -116,7 +178,18 @@ class _UserBookedTripsPageState extends State<UserBookedTripsPage> {
         itemCount: groupedBookings.length,
         itemBuilder: (context, index) {
           var booking = groupedBookings[index];
-          var trips = booking["trips"];
+
+          // Fetch the necessary data from the booking
+          var tripId = booking["tripId"];
+          var destination = booking["destination"];
+          var from = booking["from"];
+          var to = booking["to"];
+          var adults = booking["adults"];
+          var children = booking["children"];
+          var totalPerson = booking["person"];
+          var totalAmount = booking["totalAmount"];
+          var bookingDateTimestamp = booking["bookingDate"];
+          var participants = booking["participants"];
 
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -129,59 +202,62 @@ class _UserBookedTripsPageState extends State<UserBookedTripsPage> {
               shadowColor: Colors.black26,
               child: Padding(
                 padding: const EdgeInsets.all(15),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          "Booking ID: ${booking["bookingId"]}",
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.black,
+                child: GestureDetector(
+                  onTap: (){
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => BookedTripDetailsPage(
+                          tripId: tripId,
+                        ), // Pass tripId correctly
+                      ),
+                    );
+                  },
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            "Booking ID: ${booking["bookingId"]}",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.black,
+                            ),
                           ),
-                        ),
-                        Row(
-                          children: [
-                            Icon(Icons.currency_rupee, color: Color(0xFF134277)),
-                            Text(
-                              "${booking["totalFee"].toStringAsFixed(2)}", // ✅ Display total fee for all trips
-                              style: TextStyle(
+                          Row(
+                            children: [
+                              Icon(Icons.currency_rupee, color: Color(0xFF134277)),
+                              Text(
+                                "${totalAmount.toStringAsFixed(2)}", // Display total fee for all trips
+                                style: TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.w500,
-                                  color: Color(0xFF134277)),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    Divider(thickness: 1, height: 20),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: trips.map<Widget>((trip) {
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 8.0),
-                          child: Row(
-                            children: [
-                              Icon(Icons.airplanemode_active, color: Color(0xFF134277)),
-                              SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    GestureDetector(
-                                      onTap: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) => BookedTripDetailsPage(tripId: trip["tripId"]), // ✅ Pass tripId correctly
-                                          ),
-                                        );
-                                      },
-                                      child: Text(
-                                        trip["title"],
+                                  color: Color(0xFF134277),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      Divider(thickness: 1, height: 20),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8.0),
+                            child: Row(
+                              children: [
+                                Icon(Icons.airplanemode_active, color: Color(0xFF134277)),
+                                SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        destination,
                                         style: TextStyle(
                                           fontSize: 18,
                                           fontWeight: FontWeight.w500,
@@ -189,39 +265,89 @@ class _UserBookedTripsPageState extends State<UserBookedTripsPage> {
                                         ),
                                         overflow: TextOverflow.ellipsis,
                                       ),
-                                    ),
-                                    Row(
-                                      children: [
-                                        Icon(Icons.location_on, color: Colors.redAccent, size: 16),
-                                        SizedBox(width: 5),
-                                        Expanded(
-                                          child: Text(
-                                            trip["destination"],
-                                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w400),
-                                            overflow: TextOverflow.ellipsis,
+                                      Row(
+                                        children: [
+                                          Icon(Icons.location_on, color: Colors.redAccent, size: 16),
+                                          SizedBox(width: 5),
+                                          Expanded(
+                                            child: Text(
+                                              "$from to $to",
+                                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w400),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
                                           ),
-                                        ),
-                                      ],
-                                    ),
-                                    Row(
-                                      children: [
-                                        Icon(Icons.people, color: Colors.orange, size: 16),
-                                        SizedBox(width: 5),
-                                        Text(
-                                          "${trip["person"]} Person",
-                                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w400),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
+                                        ],
+                                      ),
+                                      Row(
+                                        children: [
+                                          Icon(Icons.people, color: Colors.orange, size: 16),
+                                          SizedBox(width: 5),
+                                          Text(
+                                            "$totalPerson Person ($adults Adults & $children Children)",
+                                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w400),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        );
-                      }).toList(),
-                    ),
-                  ],
+                        ],
+                      ),
+                      SizedBox(height: 5),
+                      Text(
+                        "Booking Date: ${formatTimestamp(bookingDateTimestamp)}",
+                        style: TextStyle(fontSize: 14),
+                      ),
+                      SizedBox(height: 10),
+                      Divider(thickness: 1, height: 20),
+                      SizedBox(height: 10),
+                      Text(
+                        "Participants:",
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      ),
+                      SizedBox(height: 10),
+                      Column(
+                        children: participants.map<Widget>((participant) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 5.0),
+                            child: Row(
+                              children: [
+                                Icon(Icons.person, color: Colors.blueAccent),
+                                SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        "Name: ${participant["name"]}",
+                                        style: TextStyle(fontSize: 16),
+                                      ),
+                                      Text(
+                                        "Age: ${participant["age"]}",
+                                        style: TextStyle(fontSize: 16),
+                                      ),
+                                      Text(
+                                        "Phone: ${participant["phone"]}",
+                                        style: TextStyle(fontSize: 16),
+                                      ),
+                                      Text(
+                                        "Gender: ${participant["gender"]}",
+                                        style: TextStyle(fontSize: 16),
+                                      ),
+                                      SizedBox(height: 10),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

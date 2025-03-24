@@ -1,24 +1,26 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:gobuddy/Admin/admin_approved_page.dart';
 import 'package:gobuddy/Admin/admin_navigation.dart';
 import 'package:gobuddy/Admin/admin_profile.dart';
 import 'package:gobuddy/Admin/admin_trips.dart';
 import 'package:gobuddy/Admin/booked_trip.dart';
 import 'package:gobuddy/Admin/user_trip_reports.dart';
 import 'package:gobuddy/Admin/user_trips.dart';
+import 'package:gobuddy/pages/search_page.dart';
 import 'package:iconsax/iconsax.dart';
-
 import '../const.dart';
+import '../models/internet_service.dart';
 import '../models/travel_model.dart';
-import '../pages/add_to_cart.dart';
 import '../pages/onboard_travel.dart';
 import '../pages/place_detail.dart';
 import '../pages/setting.dart';
 import '../widgets/adminside_populartrip.dart';
 import '../widgets/adminside_recomtrip.dart';
-import '../widgets/popular_place.dart';
-import '../widgets/recomendate.dart';
+
+
 
 class AdminHomePage extends StatefulWidget {
   const AdminHomePage({super.key});
@@ -28,25 +30,56 @@ class AdminHomePage extends StatefulWidget {
 }
 
 class _AdminHomePageState extends State<AdminHomePage> {
+  
+  String userid = FirebaseAuth.instance.currentUser!.uid;
 
   List<Trip> trips = [];
 
   @override
   void initState() {
     super.initState();
-    //fetchTrips(); // Load trips when the page opens
+    _checkInternetBeforeLoading();
+    checkAndDeleteExpiredTrips();
   }
 
+  void _checkInternetBeforeLoading() async {
+    bool isConnected = await hasInternetConnection(context);
+    if (!isConnected) return; // Stop further execution if no internet
+  }
 
-  // Future<void> fetchTrips() async {
-  //   Stream<List<Trip>> fetchedTrips = TripService().fetchTrips(); // Fetch trips stream
-  //
-  //   fetchedTrips.listen((tripList) {
-  //     setState(() {
-  //       trips = tripList; // Update the UI when new data arrives
-  //     });
-  //   });
-  // }
+  void checkAndDeleteExpiredTrips() async {
+    FirebaseFirestore firestore = FirebaseFirestore.instance;
+    Timestamp now = Timestamp.now();
+
+    QuerySnapshot snapshot = await firestore
+        .collection("trips")
+        .where("tripRole", isEqualTo: "admin")
+        .where("tripDone", isEqualTo: false)
+        .get(); // Fetch all trips
+
+    for (var doc in snapshot.docs) {
+      String endDateTimeString = doc["endDateTime"]; // Stored as a string
+      DateTime? endDateTime = parseTimestamp(endDateTimeString);
+
+      if (endDateTime != null) {
+        DateTime deleteTime = endDateTime.add(Duration(hours: 24)); // 24 hours after endDateTime
+        if (now.toDate().isAfter(deleteTime)) {
+          await firestore.collection("trips").doc(doc.id).delete();
+          print("Deleted expired trip with ID: ${doc.id}");
+        }
+      }
+    }
+  }
+
+// Function to parse the string timestamp to DateTime
+  DateTime? parseTimestamp(String timestamp) {
+    try {
+      return DateTime.parse(timestamp); // Assuming it's in 'yyyy-MM-dd HH:mm:ss' format
+    } catch (e) {
+      print("Error parsing timestamp: $e");
+      return null;
+    }
+  }
 
 
   @override
@@ -73,12 +106,12 @@ class _AdminHomePageState extends State<AdminHomePage> {
             child: Stack(
               children: [
                 IconButton(
-                  icon: const Icon(Icons.shopping_cart,color: Colors.white,), // Cart icon
+                  icon: const Icon(Iconsax.search_normal,color: Colors.white,), // Cart icon
                   onPressed: () {
                     // Navigate to Add to Cart page
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => AddToCartPage()),
+                      MaterialPageRoute(builder: (context) => SearchTripPage()),
                     );
                   },
                 ),
@@ -203,12 +236,12 @@ class _AdminHomePageState extends State<AdminHomePage> {
                 Navigator.push(
                     context,
                     MaterialPageRoute(
-                        builder: (context) => UserTripPage()));
+                        builder: (context) => AdminSideUserTripPage()));
               },
             ),
             ListTile(
               leading: Icon(Iconsax.receipt_item),
-              title: Text("Users Reports"),
+              title: Text("Users Trip Reports"),
               onTap: () {
                 Navigator.push(
                     context,
@@ -218,12 +251,22 @@ class _AdminHomePageState extends State<AdminHomePage> {
             ),
             ListTile(
               leading: Icon(Iconsax.receipt_add),
-              title: Text("Booked Trips"),
+              title: Text("All Booked Trips"),
               onTap: () {
                 Navigator.push(
                     context,
                     MaterialPageRoute(
-                        builder: (context) => AdminBookedTripsPage()));
+                        builder: (context) => AdminBookedTripsScreen()));
+              },
+            ),
+            ListTile(
+              leading: Icon(Iconsax.user_add),
+              title: Text("Trip Create Request"),
+              onTap: () {
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => AdminApproveTrips()));
               },
             ),
             ListTile(
@@ -292,18 +335,11 @@ class _AdminHomePageState extends State<AdminHomePage> {
                         color: Colors.black,
                       ),
                     ),
-                    Text(
-                      "See all",
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: blueTextColor,
-                      ),
-                    )
                   ],
                 ),
               ),
               const SizedBox(height: 12),
-              //admin trips
+              //Popular trips
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: StreamBuilder<List<Trip>>(
@@ -368,63 +404,59 @@ class _AdminHomePageState extends State<AdminHomePage> {
                         color: Colors.black,
                       ),
                     ),
-                    Text(
-                      "See all",
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: blueTextColor,
-                      ),
-                    )
                   ],
                 ),
               ),
               const SizedBox(height: 12),
-              //user trips
-              StreamBuilder<List<Trip>>(
-                stream: RecommendationTripService().fetchRecommendationTrips(), // Fetch trips in real-time
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return Center(child: CircularProgressIndicator()); // Show loading indicator
-                  }
+              //Recom trips
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                child: StreamBuilder<List<Trip>>(
+                  stream: RecommendationTripService().fetchRecommendationTrips(), // Fetch trips in real-time
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return Center(child: CircularProgressIndicator()); // Show loading indicator
+                    }
 
-                  if (snapshot.hasError) {
-                    return Center(child: Text("Error loading trips: ${snapshot.error}"));
-                  }
+                    if (snapshot.hasError) {
+                      return Center(child: Text("Error loading trips: ${snapshot.error}"));
+                    }
 
-                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return Center(child: Text("No trips found.")); // Handle empty data
-                  }
+                    if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                      return Center(child: Text("No trips found.")); // Handle empty data
+                    }
 
-                  final trips = snapshot.data!; // Get the trip data
+                    final trips = snapshot.data!; // Get the trip data
 
-                  return SingleChildScrollView(  // Fix overflow issue
-                    child: Column(
-                      children: List.generate(
-                        trips.length,
-                            (index) {
-                          final trip = trips[index]; // Get trip at this index
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 15),
-                            child: GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => PlaceDetailScreen(trip: trip),
-                                  ),
-                                );
-                              },
-                              child: AdminSideRecomTripManage(
-                                trip: trip,
+                    return SingleChildScrollView(  // Fix overflow issue
+                      child: Column(
+                        children: List.generate(
+                          trips.length,
+                              (index) {
+                            final trip = trips[index]; // Get trip at this index
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 15),
+                              child: GestureDetector(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => PlaceDetailScreen(trip: trip),
+                                    ),
+                                  );
+                                },
+                                child: AdminSideRecomTripManage(
+                                  trip: trip,
+                                ),
                               ),
-                            ),
-                          );
-                        },
+                            );
+                          },
+                        ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
 
+                ),
               ),
             ]
           ),

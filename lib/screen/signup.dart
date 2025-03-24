@@ -1,12 +1,17 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:gobuddy/screen/login.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:lottie/lottie.dart';
 import '../const.dart';
+import '../models/internet_service.dart';
 import '../pages/navigation_page.dart';
+import '../pages/travel_home_screen.dart';
+import 'email_verification.dart';
 
 class signup extends StatefulWidget {
   const signup({super.key});
@@ -23,7 +28,10 @@ class _signupState extends State<signup> {
 
   String? errmsg;
 
-  final RegExp phoneRegExp = RegExp(r'^[0-9]{10}$');
+  //final RegExp phoneRegExp = RegExp(r'^[0-9]{10}$');
+
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
@@ -32,49 +40,63 @@ class _signupState extends State<signup> {
   final _usernameController = TextEditingController();
 
 
+  bool isEmailVerified = false;
+  Timer? timer;
+
+  @override
+  void dispose() {
+    timer?.cancel();
+    super.dispose();
+  }
+
+
   Future<void> _signUp() async {
-    if (_formKey.currentState!.validate() ?? false) {
-      setState(() {
-        isload=true;
-      });
+    if (_formKey.currentState?.validate() ?? false) {
+      setState(() => isload = true);
+
+      bool isConnected = await hasInternetConnection(context);
+      if (!isConnected) return; // Stop execution if no internet
+
       try {
-        // Create user with email and password
-        UserCredential userCredential = await FirebaseAuth.instance
-            .createUserWithEmailAndPassword(
+        // Create user with email & password
+        UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
         );
 
-        // Get the newly created user
+        String? fcmToken = await FirebaseMessaging.instance.getToken();
+
         User? user = userCredential.user;
 
         if (user != null) {
+          // Send email verification link
+          await user.sendEmailVerification();
+          EmailVerification().checkEmailVerification(context);
 
-          await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          // Store user details in Firestore
+          await _firestore.collection('users').doc(user.uid).set({
             'username': _usernameController.text.trim(),
-            'phone' : _phoneController.text.trim(),
+            'phone': _phoneController.text.trim(),
             'email': _emailController.text.trim(),
             'uid': user.uid,
-            'role':'user',
+            'role': 'user',
+            'fcmToken': fcmToken,
             'createdAt': FieldValue.serverTimestamp(),
           });
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Sign up successful!")),
-          );
 
-          Navigator.push(context, MaterialPageRoute(builder: (context) => NavigationPage()));
 
         }
       } on FirebaseAuthException catch (e) {
-        setState(() {
-          errmsg=e.message;
-        });
-      }
-      finally{
-        setState(() {
-          isload=false;
-        });
+        String errorMsg = "An error occurred. Please try again.";
+        if (e.code == 'invalid-email') errorMsg = "The email address is not valid.";
+        else if (e.code == 'email-already-in-use') errorMsg = "This email is already registered.";
+        else if (e.code == 'weak-password') errorMsg = "The password is too weak.";
+        else if (e.code == 'operation-not-allowed') errorMsg = "Email/password sign-up is disabled.";
+
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMsg)));
+      } finally {
+        setState(() => isload = false);
       }
     }
   }
@@ -109,6 +131,7 @@ class _signupState extends State<signup> {
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
+      String? fcmToken = await FirebaseMessaging.instance.getToken();
 
       // Sign in with Firebase using the credential
       final UserCredential userCredential = await _auth.signInWithCredential(credential);
@@ -126,6 +149,7 @@ class _signupState extends State<signup> {
           'phone': phoneNumber,
           'uid': userCredential.user!.uid,
           'role':'user',
+          'fcmToken': fcmToken,
           'createdAt': FieldValue.serverTimestamp(),
           'profilePic': userCredential.user!.photoURL,
         });
@@ -149,7 +173,6 @@ class _signupState extends State<signup> {
     }
   }
 
-
   Future<void> signInWithFacebook() async {
     try {
       final LoginResult result = await FacebookAuth.instance.login(
@@ -166,6 +189,9 @@ class _signupState extends State<signup> {
 
         String? phoneNumber = userCredential.user!.phoneNumber;
 
+        String? fcmToken = await FirebaseMessaging.instance.getToken();
+
+
         // Store user data in Firestore (if new)
         await FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).set({
           'username': userCredential.user!.displayName,
@@ -173,6 +199,7 @@ class _signupState extends State<signup> {
           'uid': userCredential.user!.uid,
           'phone': phoneNumber,
           'role':'user',
+          'fcmToken': fcmToken,
           'profilePic': userCredential.user!.photoURL,
           'createdAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
@@ -231,7 +258,7 @@ class _signupState extends State<signup> {
                       style: const TextStyle(fontSize: 15),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
-                          return 'Please enter your Phone Number Username';
+                          return 'Please enter your Username';
                         } else if (value.length < 3) {
                           return 'Username must be at least 3 characters long';
                         } else if (!RegExp(r'^[a-zA-Z0-9 ]+$').hasMatch(value)) {
@@ -547,4 +574,7 @@ class _signupState extends State<signup> {
         )
     );
   }
+
+
+
 }

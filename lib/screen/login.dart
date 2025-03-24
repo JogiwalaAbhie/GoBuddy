@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:gobuddy/Admin/admin_home.dart';
@@ -8,6 +9,7 @@ import 'package:gobuddy/const.dart';
 import 'package:gobuddy/screen/signup.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:lottie/lottie.dart';
+import '../models/internet_service.dart';
 import '../pages/navigation_page.dart';
 
 class login extends StatefulWidget {
@@ -33,8 +35,12 @@ class _loginState extends State<login> {
   Future<void> _login() async {
     if (formKey.currentState!.validate() ?? false) {
       setState(() {
-        isload=true;
+        isload = true;
       });
+
+      bool isConnected = await hasInternetConnection(context);
+      if (!isConnected) return;
+
       try {
         // Log in with email and password
         UserCredential userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
@@ -42,13 +48,19 @@ class _loginState extends State<login> {
           password: _passwordController.text.trim(),
         );
 
-        DocumentSnapshot doc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(userCredential.user?.uid)
-            .get();
+        String uid = userCredential.user!.uid;
+
+        // Get Firestore User Data
+        DocumentSnapshot doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
 
         if (doc.exists) {
-          String emailid = doc['email'];// Get user role
+          String emailid = doc['email']; // Get email
+
+          // 🔹 Fetch and Update FCM Token
+          String? fcmToken = await FirebaseMessaging.instance.getToken();
+          await FirebaseFirestore.instance.collection('users').doc(uid).update({
+            'fcmToken': fcmToken,
+          });
 
           if (emailid == "admin@gobuddy.com") {
             // Navigate to Admin Panel
@@ -57,29 +69,28 @@ class _loginState extends State<login> {
               SnackBar(content: Text("Admin Login successful!")),
             );
           } else {
-            // Navigate to user Panel
-            Navigator.push(context, MaterialPageRoute(builder: (context) => NavigationPage()));
+            // Navigate to User Panel
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => NavigationPage()),
+                  (route) => false, // Removes all previous screens
+            );
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text("Login successful!")),
             );
-
-
           }
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text("User not found")),
           );
         }
-
-
       } on FirebaseAuthException catch (e) {
         setState(() {
-          errmsg="Either Email or Password are Wrong!";
+          errmsg = "Either Email or Password are Wrong!";
         });
-      }
-      finally{
+      } finally {
         setState(() {
-          isload=false;
+          isload = false;
         });
       }
     }
@@ -118,6 +129,9 @@ class _loginState extends State<login> {
 
         DocumentSnapshot userDoc = await userDocRef.get();
 
+        String? fcmToken = await FirebaseMessaging.instance.getToken();
+
+
         if (userDoc.exists) {
           // User exists → Login successful
           Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
@@ -133,6 +147,7 @@ class _loginState extends State<login> {
             'phone': user.phoneNumber ?? "N/A",
             'uid': user.uid,
             'role':'user',
+            'fcmToken': fcmToken,
             'profilePic': user.photoURL ?? "",
             'createdAt': FieldValue.serverTimestamp(),
           });
@@ -143,10 +158,12 @@ class _loginState extends State<login> {
         }
 
         // Navigate to home page after login or registration
-        Navigator.pushReplacement(
+        Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (context) => NavigationPage()),
+              (route) => false, // Removes all previous screens from the stack
         );
+
       }
 
       return user;
@@ -186,6 +203,9 @@ class _loginState extends State<login> {
           DocumentReference userDocRef =
           FirebaseFirestore.instance.collection('users').doc(user.uid);
 
+          String? fcmToken = await FirebaseMessaging.instance.getToken();
+
+
           DocumentSnapshot userDoc = await userDocRef.get();
 
           if (userDoc.exists) {
@@ -203,6 +223,7 @@ class _loginState extends State<login> {
               'phone': user.phoneNumber ?? "No Phone",
               'uid': user.uid,
               'role':'user',
+              'fcmToken': fcmToken,
               'profilePic': user.photoURL ?? "",
               'createdAt': FieldValue.serverTimestamp(),
             });
@@ -213,10 +234,12 @@ class _loginState extends State<login> {
           }
 
           // Navigate to home page after login or registration
-          Navigator.pushReplacement(
+          Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(builder: (context) => NavigationPage()),
+                (route) => false, // Removes all previous screens from the stack
           );
+
         }
       }
     } catch (e) {

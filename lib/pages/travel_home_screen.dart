@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:gobuddy/models/travel_model.dart';
 import 'package:gobuddy/pages/help_and_supprt.dart';
 import 'package:gobuddy/pages/my_trip.dart';
@@ -12,11 +13,13 @@ import 'package:gobuddy/pages/setting.dart';
 import 'package:gobuddy/pages/user_booked_trip.dart';
 import 'package:gobuddy/pages/user_profile.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../const.dart';
+import '../models/internet_service.dart';
+import '../models/notification_model.dart';
 import '../widgets/popular_place.dart';
 import '../widgets/recomendate.dart';
-import 'add_to_cart.dart';
-import 'addtrippage.dart';
 import 'navigation_page.dart'; // add this package first for icon
 
 class TravelHomeScreen extends StatefulWidget {
@@ -28,7 +31,106 @@ class TravelHomeScreen extends StatefulWidget {
 
 class _TravelHomeScreenState extends State<TravelHomeScreen> {
 
+
+  @override
+  void initState() {
+    super.initState();
+    checkAndDeleteExpiredTrips();
+    _checkInternetBeforeLoading();
+    _checkNotificationPermission();
+    scheduleBackgroundTask();
+  }
+
+  // Check if notification permission is not granted
+  Future<void> _checkNotificationPermission() async {
+    var status = await Permission.notification.status;
+
+    if (!status.isGranted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showPermissionDialog();
+      });
+    }
+  }
+
+  // Show alert dialog to request permission
+  void _showPermissionDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          title: Text("Enable Notifications",style: TextStyle(fontWeight: FontWeight.w500),),
+          content: Text("This app requires notification permissions to send important alerts."),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text("Cancel",style: TextStyle(color: Color(0xFF134277)),),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(context); // Close dialog
+                await _requestNotificationPermission();
+              },
+              child: Text("Allow",style: TextStyle(color: Color(0xFF134277)),),
+            ),
+          ],
+        );
+      },
+    );
+  }
+  // Request notification permission & navigate to settings if denied
+  Future<void> _requestNotificationPermission() async {
+    var status = await Permission.notification.request();
+
+    if (status.isDenied || status.isPermanentlyDenied) {
+      openAppSettings(); // Navigate to system settings
+    }
+  }
+
+  void _checkInternetBeforeLoading() async {
+    bool isConnected = await hasInternetConnection(context);
+    if (!isConnected) return; // Stop further execution if no internet
+
+  }
+
+  void checkAndDeleteExpiredTrips() async {
+    FirebaseFirestore firestore = FirebaseFirestore.instance;
+    Timestamp now = Timestamp.now();
+
+    QuerySnapshot snapshot = await firestore
+        .collection("trips")
+        .where("tripRole", isEqualTo: "admin")
+        .where("tripDone", isEqualTo: false)
+        .get(); // Fetch all trips
+
+    for (var doc in snapshot.docs) {
+      String endDateTimeString = doc["endDateTime"]; // Stored as a string
+      DateTime? endDateTime = parseTimestamp(endDateTimeString);
+
+      if (endDateTime != null) {
+        DateTime deleteTime = endDateTime.add(Duration(hours: 24)); // 24 hours after endDateTime
+        if (now.toDate().isAfter(deleteTime)) {
+          await firestore.collection("trips").doc(doc.id).delete();
+          print("Deleted expired trip with ID: ${doc.id}");
+        }
+      }
+    }
+  }
+
+// Function to parse the string timestamp to DateTime
+  DateTime? parseTimestamp(String timestamp) {
+    try {
+      return DateTime.parse(timestamp); // Assuming it's in 'yyyy-MM-dd HH:mm:ss' format
+    } catch (e) {
+      print("Error parsing timestamp: $e");
+      return null;
+    }
+  }
+
+
   final GlobalKey<ScaffoldState> scaffoldKey = GlobalKey<ScaffoldState>();
+
 
   @override
   Widget build(BuildContext context) {
@@ -103,7 +205,7 @@ class _TravelHomeScreenState extends State<TravelHomeScreen> {
                           username,
                           style: TextStyle(
                             fontSize: 20,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w600,
                             color: kBackgroundColor,
                           ),
                         ),
@@ -139,7 +241,7 @@ class _TravelHomeScreenState extends State<TravelHomeScreen> {
               leading: Icon(Iconsax.save_2),
               title: Text("Saved"),
               onTap: (){
-                Navigator.push(context, MaterialPageRoute(builder: (context) => savedTripPage()));
+                Navigator.push(context, MaterialPageRoute(builder: (context) => SavedTripPage()));
               },
             ),
             ListTile(
@@ -218,13 +320,6 @@ class _TravelHomeScreenState extends State<TravelHomeScreen> {
                           color: Colors.black,
                         ),
                       ),
-                      Text(
-                        "See all",
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: blueTextColor,
-                        ),
-                      )
                     ],
                   ),
                 ),
@@ -294,63 +389,59 @@ class _TravelHomeScreenState extends State<TravelHomeScreen> {
                           color: Colors.black,
                         ),
                       ),
-                      Text(
-                        "See all",
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: blueTextColor,
-                        ),
-                      )
                     ],
                   ),
                 ),
                 const SizedBox(height: 12),
                 //user trips
-                StreamBuilder<List<Trip>>(
-                  stream: RecommendationTripService().fetchRecommendationTrips(), // Fetch trips in real-time
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return Center(child: CircularProgressIndicator()); // Show loading indicator
-                    }
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: StreamBuilder<List<Trip>>(
+                    stream: RecommendationTripService().fetchRecommendationTrips(), // Fetch trips in real-time
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return Center(child: CircularProgressIndicator()); // Show loading indicator
+                      }
 
-                    if (snapshot.hasError) {
-                      return Center(child: Text("Error loading trips: ${snapshot.error}"));
-                    }
+                      if (snapshot.hasError) {
+                        return Center(child: Text("Error loading trips: ${snapshot.error}"));
+                      }
 
-                    if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                      return Center(child: Text("No trips found.")); // Handle empty data
-                    }
+                      if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                        return Center(child: Text("No trips found.")); // Handle empty data
+                      }
 
-                    final trips = snapshot.data!; // Get the trip data
+                      final trips = snapshot.data!; // Get the trip data
 
-                    return SingleChildScrollView(  // Fix overflow issue
-                      child: Column(
-                        children: List.generate(
-                          trips.length,
-                              (index) {
-                            final trip = trips[index]; // Get trip at this index
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 15),
-                              child: GestureDetector(
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => PlaceDetailScreen(trip: trip),
-                                    ),
-                                  );
-                                },
-                                child: RecomTripWidget(
-                                  trip: trip,
+                      return SingleChildScrollView(  // Fix overflow issue
+                        child: Column(
+                          children: List.generate(
+                            trips.length,
+                                (index) {
+                              final trip = trips[index]; // Get trip at this index
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 15),
+                                child: GestureDetector(
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => PlaceDetailScreen(trip: trip),
+                                      ),
+                                    );
+                                  },
+                                  child: RecomTripWidget(
+                                    trip: trip,
+                                  ),
                                 ),
-                              ),
-                            );
-                          },
+                              );
+                            },
+                          ),
                         ),
-                      ),
-                    );
-                  },
+                      );
+                    },
 
+                  ),
                 ),
               ]
           ),
@@ -376,7 +467,7 @@ class _TravelHomeScreenState extends State<TravelHomeScreen> {
           onPressed: () {
             scaffoldKey.currentState?.openDrawer();
           },
-          icon: Icon(Icons.menu),
+          icon: Icon(Iconsax.menu_1),
         color: Colors.white,
       ),
       actions: [
@@ -393,12 +484,11 @@ class _TravelHomeScreenState extends State<TravelHomeScreen> {
           child: Stack(
             children: [
               IconButton(
-                icon: const Icon(Icons.shopping_cart,color: Colors.white,), // Cart icon
+                icon: const Icon(Iconsax.search_normal ,color: Colors.white,), // Cart  icon
                 onPressed: () {
-                  // Navigate to Add to Cart page
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => AddToCartPage()),
+                    MaterialPageRoute(builder: (context) => SearchTripPage()),
                   );
                 },
               ),

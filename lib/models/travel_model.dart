@@ -6,65 +6,75 @@ import 'package:flutter/material.dart';
 
 class Trip {
   final String id;
-  final String name;
   final String location;
+  final String from;
+  final String to;
   final double rate;
   final int review;
+  final int approxCost;
   final double price;
   final String des;
+  final String tripoverview;
   final String tripCategory;
   final String transportation;
   final String accommodation;
   final int maxpart;
   final int daysOfTrip;
-  final String includedServices;
+  List<String> includedServices;
+  DateTime? startDateTime;
+  DateTime? endDateTime;
   final DateTime? startDate;
   final DateTime? endDate;
-  final String? startTime;
-  final String? endTime;
   final String meetingPoint;
-  final String contactInfo;
   final String whatsappInfo;
   final String itemsToBring;
   final String guidelines;
   final String cancellationPolicy;
   final String hostId;
   final String hostName;
+  final String costLevel;
   final List<String>? savedBy;
   final List<String> image;
   final bool popular;
   int persons;
+  final List<String> itinerary;
+  final String role;
 
   Trip({
     required this.id,
-    required this.name,
     required this.location,
+    required this.from,
+    required this.to,
     required this.rate,
     required this.review,
+    required this.approxCost,
     required this.price,
     required this.des,
+    required this.tripoverview,
     required this.tripCategory,
     required this.maxpart,
     required this.daysOfTrip,
     required this.transportation,
     required this.accommodation,
     required this.includedServices,
+    this.startDateTime,
+    this.endDateTime,
     required this.startDate,
-    required this.startTime,
     required this.endDate,
-    required this.endTime,
     required this.meetingPoint,
-    required this.contactInfo,
     required this.whatsappInfo,
     required this.itemsToBring,
     required this.guidelines,
     required this.cancellationPolicy,
     required this.hostId,
     required this.hostName,
+    required this.costLevel,
     this.savedBy,
     this.persons = 1,
     required this.image,
-    required this.popular
+    required this.popular,
+    required this.itinerary,
+    required this.role,
   });
 
   // Convert Firestore document to Trip object
@@ -72,51 +82,43 @@ class Trip {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
     return Trip(
       id: doc.id,
-      name: data['tripTitle'] ?? '',
       location: data['destination'] ?? '',
       rate: (data['rating'] ?? 0).toDouble(),
       review: data['reviews'] ?? 0,
       des: data['description'] ?? '',
+      from: data["from"] ?? '',
+      to: data["to"] ?? '',
+      tripoverview: data['tripOverview'] ?? '',
       tripCategory: data['tripCategory'] ?? '',
       maxpart: data['maxParticipants'] ?? 0,
       daysOfTrip: data['daysOfTrip'] ?? 0,
       transportation: data['transportation'] ?? '',
       accommodation: data['accommodation'] ?? '',
-      includedServices: data['includedServices'] ?? '',
+      includedServices: List<String>.from(data["includedServices"] ?? []),
+      startDateTime: data["startDateTime"] != null ? DateTime.parse(data["startDateTime"]) : null,
+      endDateTime: data["endDateTime"] != null ? DateTime.parse(data["endDateTime"]) : null,
       startDate: data['startDate'] != null ? DateTime.parse(data['startDate']) : null,
-      startTime: data['startTime'],
       endDate: data['endDate'] != null ? DateTime.parse(data['endDate']) : null,
-      endTime: data['endTime'],
       meetingPoint: data['meetingPoint'] ?? '',
-      contactInfo: data['contactInfo'] ?? '',
       whatsappInfo: data['whatsappInfo'] ?? '',
       itemsToBring: data['itemsToBring'] ?? '',
       guidelines: data['guidelines'] ?? '',
       cancellationPolicy: data['cancellationPolicy'] ?? '',
+      approxCost: data['approxCost']?? 0,
       price: (data['tripFee'] ?? 0).toDouble(),
       hostId: data['hostId'] ?? '',
+      costLevel: data["costLevel"] ?? '',
       hostName: data['hostUsername'] ?? '',
       savedBy: List<String>.from(data['savedBy'] ?? []),
       image: List<String>.from(data['photos'] ?? []),
       popular: data['popular'] ?? false,
+      itinerary: List<String>.from(data['itinerary'] ?? []),
+      role: data['tripRole'],
     );
 
   }
 
 }
-
-// class TripService {
-//   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-//
-//
-//   Stream<List<Trip>> fetchTrips() {
-//     return _firestore.collection('trips').snapshots().map((snapshot) {
-//       return snapshot.docs.map((doc) {
-//         return Trip.fromFirestore(doc);
-//       }).toList();
-//     });
-//   }
-// }
 
 class MyTripService{
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -139,22 +141,37 @@ class MyTripService{
 }
 
 class TripSearchService {
-  Stream<List<Trip>> fetchSearchedTrips(String query) {
-    return FirebaseFirestore.instance
+  Stream<List<Trip>> fetchSearchedTrips(String query, String? category, String? transport) {
+    Query queryRef = FirebaseFirestore.instance
         .collection('trips')
-        .snapshots() // 🔥 Listen to real-time updates
-        .map((snapshot) {
+        .where('tripDone', isEqualTo: false)
+        .where("tripRole", isEqualTo: "admin");
+
+    // Apply category filter
+    if (category != null && category.isNotEmpty) {
+      queryRef = queryRef.where("category", isEqualTo: category);
+    }
+
+    // Apply transport filter
+    if (transport != null && transport.isNotEmpty) {
+      queryRef = queryRef.where("transportation", isEqualTo: transport);
+    }
+
+    return queryRef.snapshots().map((snapshot) {
       List<Trip> allTrips = snapshot.docs.map((doc) => Trip.fromFirestore(doc)).toList();
 
-      // Filter trips by title or destination
+      // Filter trips by search query matching from, to, or destination
       return allTrips.where((trip) {
-        final titleMatch = trip.name.toLowerCase().contains(query.toLowerCase());
-        final destinationMatch = trip.location.toLowerCase().contains(query.toLowerCase());
-        return titleMatch || destinationMatch;
+        final queryLower = query.toLowerCase();
+
+        final fromMatch = trip.from.toLowerCase().contains(queryLower);
+        final toMatch = trip.to.toLowerCase().contains(queryLower);
+        final destinationMatch = trip.location.toLowerCase().contains(queryLower);
+
+        return fromMatch || toMatch || destinationMatch;
       }).toList();
     });
   }
-
 }
 
 class SavedTripService {
@@ -168,7 +185,8 @@ class SavedTripService {
 
     return FirebaseFirestore.instance
         .collection('trips')
-        .where('savedBy', arrayContains: userId) // 🔥 Listen to real-time updates
+        .where('savedBy', arrayContains: userId)
+        .where('tripDone', isEqualTo: false)// 🔥 Listen to real-time updates
         .snapshots()
         .map((snapshot) => snapshot.docs.map((doc) => Trip.fromFirestore(doc)).toList());
   }
@@ -176,13 +194,65 @@ class SavedTripService {
 }
 
 class AdminTripService {
-  Stream<List<Trip>> fetchTrips() {
-    return FirebaseFirestore.instance
+  Stream<List<Trip>> fetchFilteredTrips(String searchQuery, String? category, String? transport) {
+    Query query = FirebaseFirestore.instance
         .collection('trips')
-        .where('tripRole', isEqualTo: 'admin')
-        .snapshots() // 👈 Listen for real-time updates
-        .map((snapshot) =>
-        snapshot.docs.map((doc) => Trip.fromFirestore(doc)).toList());
+        .where('tripRole', isEqualTo: 'admin');
+
+    if (category != null && category.isNotEmpty) {
+      query = query.where('category', isEqualTo: category);
+    }
+    if (transport != null && transport.isNotEmpty) {
+      query = query.where('transportation', isEqualTo: transport);
+    }
+
+    return query.snapshots().map((snapshot) {
+      List<Trip> allTrips = snapshot.docs.map((doc) => Trip.fromFirestore(doc)).toList();
+
+      if (searchQuery.isEmpty) {
+        return allTrips;
+      }
+
+      String queryLower = searchQuery.toLowerCase();
+
+      return allTrips.where((trip) {
+        return (trip.from.toLowerCase().contains(queryLower) ?? false) ||
+            (trip.to.toLowerCase().contains(queryLower) ?? false) ||
+            (trip.location.toLowerCase().contains(queryLower) ?? false);
+      }).toList();
+    });
+  }
+}
+
+class UserTripSearchService {
+  Stream<List<Trip>> fetchFilteredTrips(String searchQuery, String? category, String? costLevel) {
+    Query query = FirebaseFirestore.instance
+        .collection('trips')
+        .where('isApproved', isEqualTo: true)
+        .where('tripRole', isEqualTo: 'user');
+
+    if (category != null && category.isNotEmpty) {
+      query = query.where('tripCategory', isEqualTo: category);
+    }
+    if (costLevel != null && costLevel.isNotEmpty) {
+      query = query.where('costLevel', isEqualTo: costLevel);
+    }
+
+    return query.snapshots().map((snapshot) {
+      List<Trip> allTrips = snapshot.docs.map((doc) => Trip.fromFirestore(doc)).toList();
+
+      if (searchQuery.isEmpty) {
+        return allTrips;
+      }
+
+      String queryLower = searchQuery.toLowerCase();
+
+      return allTrips.where((trip) {
+        return (trip.from.toLowerCase().contains(queryLower) ?? false) ||
+            (trip.to.toLowerCase().contains(queryLower) ?? false) ||
+            (trip.location.toLowerCase().contains(queryLower) ?? false);
+      }).toList();
+    });
   }
 }
 
@@ -191,6 +261,8 @@ class UserTripService{
     return FirebaseFirestore.instance
         .collection('trips')
         .where('tripRole', isEqualTo: 'user')
+        .where('isApproved', isEqualTo: true)
+        .where('tripDone', isEqualTo: false)
         .snapshots() // 👈 Listen for real-time updates
         .map((snapshot) =>
         snapshot.docs.map((doc) => Trip.fromFirestore(doc)).toList());
@@ -202,7 +274,7 @@ class DeleteTripService{
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-
+        backgroundColor: Colors.white,
         title: const Text("Confirm Delete"),
         content: const Text("Are you sure you want to delete this trip?"),
         actions: [
@@ -335,7 +407,9 @@ class PopularTripService{
   Stream<List<Trip>> fetchPopularTrips() {
     return FirebaseFirestore.instance
         .collection("trips")
-        .where("popular", isEqualTo: true) // ✅ Fetch only popular trips
+        .where("tripRole", isEqualTo: "admin")
+        .where("popular", isEqualTo: true)
+        .where('tripDone', isEqualTo: false)// ✅ Fetch only popular trips
         .snapshots()
         .map((snapshot) =>
         snapshot.docs.map((doc) => Trip.fromFirestore(doc)).toList());
@@ -347,7 +421,9 @@ class RecommendationTripService{
   Stream<List<Trip>> fetchRecommendationTrips() {
     return FirebaseFirestore.instance
         .collection("trips")
-        .where("popular", isEqualTo: false) // ✅ Fetch only popular trips
+        .where("tripRole", isEqualTo: "admin")
+        .where("popular", isEqualTo: false)
+        .where('tripDone', isEqualTo: false)// ✅ Fetch only popular trips
         .snapshots()
         .map((snapshot) =>
         snapshot.docs.map((doc) => Trip.fromFirestore(doc)).toList());

@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../Admin/admin_trip_edit.dart';
 import '../const.dart';
@@ -11,7 +12,7 @@ class AdminSideAdminTripManage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(0),
+      padding: const EdgeInsets.fromLTRB(0, 4, 0, 8),
       child: Stack(
         children: [
           Positioned(
@@ -40,7 +41,7 @@ class AdminSideAdminTripManage extends StatelessWidget {
                 borderRadius: BorderRadius.circular(15),
                 image: DecorationImage(
                   fit: BoxFit.cover,
-                  image: NetworkImage(
+                  image: CachedNetworkImageProvider(
                     trip.image[0],
                   ),
                 ),
@@ -62,7 +63,7 @@ class AdminSideAdminTripManage extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    trip.name,
+                                    "${trip.from} To ${trip.to}",
                                     style: const TextStyle(
                                       fontSize: 16,
                                       color: Colors.white,
@@ -137,7 +138,7 @@ class AdminSideAdminTripManage extends StatelessWidget {
                           value: 'edit',
                           child: Row(
                             children: [
-                              Icon(Icons.edit, color: Colors.blue),
+                              Icon(Icons.edit, color: Color(0xFF134277)),
                               SizedBox(width: 8),
                               Text("Edit"),
                             ],
@@ -147,7 +148,7 @@ class AdminSideAdminTripManage extends StatelessWidget {
                           value: 'delete',
                           child: Row(
                             children: [
-                              Icon(Icons.delete, color: Colors.red),
+                              Icon(Icons.delete, color: Color(0xFF134277)),
                               SizedBox(width: 8),
                               Text("Delete"),
                             ],
@@ -159,7 +160,7 @@ class AdminSideAdminTripManage extends StatelessWidget {
                             children: [
                               Icon(
                                 trip.popular ? Icons.star_border : Icons.star,
-                                color: Colors.orange,
+                                color: Color(0xFF134277),
                               ),
                               SizedBox(width: 8),
                               Text(trip.popular ? "Make Unpopular" : "Make Popular"),

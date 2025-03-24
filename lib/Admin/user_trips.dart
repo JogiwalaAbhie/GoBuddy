@@ -1,56 +1,71 @@
 import 'package:flutter/material.dart';
-
 import '../const.dart';
 import '../models/travel_model.dart';
 import '../pages/place_detail.dart';
-import '../widgets/adminside_usertrips.dart';
-import '../widgets/recomendate.dart';
+import '../pages/user_trips_details.dart';
+import '../widgets/userside_usertripedit.dart';
 import 'admin_navigation.dart';
 
-class UserTripPage extends StatefulWidget {
-  const UserTripPage({super.key});
+class AdminSideUserTripPage extends StatefulWidget {
+  const AdminSideUserTripPage({super.key});
 
   @override
-  State<UserTripPage> createState() => _UserTripPageState();
+  State<AdminSideUserTripPage> createState() => _UserTripPageState();
 }
 
-class _UserTripPageState extends State<UserTripPage> {
+class _UserTripPageState extends State<AdminSideUserTripPage> {
 
   List<Trip> trips = [];
 
-  @override
-  void initState() {
-    super.initState();
-    // fetchTrips(); // Load trips when the page opens
-  }
+  String searchQuery = "";
+  bool isSearching = false;
+  String? selectedCategory;
+  String? selectedCost;
+  TextEditingController searchController = TextEditingController();
 
-
-  // Future<void> fetchTrips() async {
-  //   Stream<List<Trip>> fetchedTrips = TripService().fetchTrips(); // Fetch trips stream
-  //
-  //   fetchedTrips.listen((tripList) {
-  //     setState(() {
-  //       trips = tripList; // Update the UI when new data arrives
-  //     });
-  //   });
-  // }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kBackgroundColor,
       appBar: AppBar(
-        title: Text("User Trips",
+        title: isSearching
+            ? TextField(
+          controller: searchController,
+          decoration: InputDecoration(
+            hintText: "Search trips...",
+            border: InputBorder.none,
+            hintStyle: TextStyle(color: Colors.white70),
+          ),
           style: TextStyle(color: Colors.white),
-        ),
+          autofocus: true,
+          onChanged: (query) {
+            setState(() => searchQuery = query);
+          },
+        )
+            : Text("User Trips"),
         backgroundColor: Color(0xFF134277),
         foregroundColor: Colors.white,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back),
-          onPressed: () {
-            Navigator.push(context, MaterialPageRoute(builder: (context) => AdminNavigationPage()));
-          },
-        ),
+        actions: [
+          IconButton(
+            icon: Icon(isSearching ? Icons.close : Icons.search),
+            onPressed: () {
+              setState(() {
+                if (isSearching) {
+                  searchQuery = "";
+                  searchController.clear();
+                }
+                isSearching = !isSearching;
+              });
+            },
+          ),
+          IconButton(
+            icon: Icon(Icons.filter_list),
+            onPressed: () {
+              showFilterDialog(context);
+            },
+          ),
+        ],
       ),
       body: SingleChildScrollView( // Wrap everything in a scrollable view
         child: Padding(
@@ -59,7 +74,7 @@ class _UserTripPageState extends State<UserTripPage> {
             mainAxisAlignment: MainAxisAlignment.start,
             children: [
               StreamBuilder<List<Trip>>(
-                stream: UserTripService().fetchTrips(),  // Fetch trips in real-time
+                stream: UserTripSearchService().fetchFilteredTrips(searchQuery, selectedCategory, selectedCost),// Fetch trips in real-time
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return Center(child: CircularProgressIndicator());  // Show loading indicator
@@ -83,16 +98,11 @@ class _UserTripPageState extends State<UserTripPage> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => PlaceDetailScreen(
-                                    trip: trip,  // Pass selected trip to the detail screen
-                                  ),
+                                  builder: (_) => UserTripsDetails(trip: trip)
                                 ),
                               );
                             },
-                            child: AdminSideUserTripManage(
-                              trip: trip,
-                              // Pass the trip to the widget
-                            ),
+                            child: UserTripWidget(trip: trip),
                           ),
                         );
                       },
@@ -106,6 +116,93 @@ class _UserTripPageState extends State<UserTripPage> {
           ),
         ),
       ),
+    );
+  }
+
+  void showFilterDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              title: Text("Filter Trips", style: TextStyle(fontWeight: FontWeight.w600)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    decoration: InputDecoration(labelText: "Category",
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFFBFCFF3), width: 2),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF134277), width: 2),
+                      ),),
+                    value: selectedCategory,
+                    items: ["Adventure", "Beach Vacations", "Historical Tours", "Road Trips", "Volunteer & Humanitarian", "Wellness"]
+                        .map((cat) => DropdownMenuItem(value: cat, child: Text(cat)))
+                        .toList(),
+                    onChanged: (value) {
+                      setDialogState(() => selectedCategory = value);
+                    },
+                  ),
+                  SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    decoration: InputDecoration(labelText: "Cost Level",
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFFBFCFF3), width: 2),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF134277), width: 2),
+                      ),),
+                    value: selectedCost,
+                    items: ["Easy", "Medium", "Premium"]
+                        .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                        .toList(),
+                    onChanged: (value) {
+                      setDialogState(() => selectedCost = value);
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    setDialogState(() {
+                      selectedCategory = null;
+                      selectedCost = null;
+                    });
+                  },
+                  child: Text("Reset",style: TextStyle(color: Color(0xFF134277)),),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {}); // Refresh UI
+                    Navigator.pop(context);
+                  },
+                  child: Text("Apply"),
+                  style: ElevatedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    shadowColor: Colors.black,
+                    backgroundColor: const Color(0xFF134277),
+                    elevation: 10, // Elevation
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding:
+                    EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

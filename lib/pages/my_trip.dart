@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:gobuddy/pages/place_detail.dart';
-
+import 'package:gobuddy/pages/user_trips_details.dart';
+import 'package:gobuddy/widgets/userside_usertripedit.dart';
 import '../models/travel_model.dart';
-import '../widgets/popular_place.dart';
-import '../widgets/recomendate.dart';
 
 class MyTrip extends StatefulWidget {
   const MyTrip({super.key});
@@ -13,21 +12,6 @@ class MyTrip extends StatefulWidget {
 }
 
 class _MyTripState extends State<MyTrip> {
-
-  //List<TravelDestination> popular =
-  //myDestination.where((element) => element.category == "popular").toList();
-
-  // Future<List<Trip>> trips = Future.value([]);
-  //
-  // @override
-  // void initState() {
-  //   super.initState();
-  //   trips = _fetchTrips();
-  // }
-  //
-  // Future<List<Trip>> _fetchTrips() async {
-  //   return await MyTripService().fetchTrips();
-  // }
 
   @override
   Widget build(BuildContext context) {
@@ -51,82 +35,6 @@ class _MyTripState extends State<MyTrip> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.start,
             children: [
-              // const SizedBox(height: 20),
-              // const Padding(
-              //   padding: EdgeInsets.symmetric(horizontal: 15),
-              //   child: Row(
-              //     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              //     children: [
-              //       Text(
-              //         "Popular place",
-              //         style: TextStyle(
-              //           fontSize: 20,
-              //           fontWeight: FontWeight.w600,
-              //           color: Colors.black,
-              //         ),
-              //       ),
-              //       Text(
-              //         "See all",
-              //         style: TextStyle(
-              //           fontSize: 14,
-              //           color: blueTextColor,
-              //         ),
-              //       )
-              //     ],
-              //   ),
-              // ),
-              // const SizedBox(height: 15),
-              // SingleChildScrollView(
-              //   scrollDirection: Axis.horizontal,
-              //   padding: const EdgeInsets.only(bottom: 20),
-              //   child: Row(
-              // children: List.generate(
-              //   popular.length,
-              //       (index) => Padding(
-              //         padding: const EdgeInsets.all(8.0),
-              //         child: GestureDetector(
-              //           onTap: () {
-              //             Navigator.push(
-              //               context,
-              //               MaterialPageRoute(
-              //                 builder: (_) => PlaceDetailScreen(
-              //                   trip: popular[index],
-              //                 ),
-              //               ),
-              //             );
-              //           },
-              //           child: PopularPlace(
-              //             destination: popular[index],
-              //           ),
-              //         ),
-              //       ),
-              // ),
-              //   ),
-              // ),
-              // const Padding(
-              //   padding: EdgeInsets.symmetric(horizontal: 15),
-              //   child: Row(
-              //     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              //     children: [
-              //       Text(
-              //         "Recomendation for you",
-              //         style: TextStyle(
-              //           fontSize: 20,
-              //           fontWeight: FontWeight.w600,
-              //           color: Colors.black,
-              //         ),
-              //       ),
-              //       Text(
-              //         "See all",
-              //         style: TextStyle(
-              //           fontSize: 14,
-              //           color: blueTextColor,
-              //         ),
-              //       )
-              //     ],
-              //   ),
-              // ),
-              // const SizedBox(height: 20),
               StreamBuilder<List<Trip>>(
                 stream: MyTripService().fetchTrips(),
                 builder: (context, snapshot) {
@@ -135,9 +43,13 @@ class _MyTripState extends State<MyTrip> {
                   }
 
                   if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return Center(child: Text("It looks like you haven't added any trips yet.."));
+                    return Center(
+                      child: Text(
+                        "It looks like you haven't added any trips yet..",
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w400),
+                      ),
+                    );
                   }
-
                   final recomendate  = snapshot.data!;
 
                   return Column(
@@ -152,13 +64,13 @@ class _MyTripState extends State<MyTrip> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => PlaceDetailScreen(
+                                  builder: (_) => UserTripsDetails(
                                     trip: trip,  // Pass selected trip to the detail screen
                                   ),
                                 ),
                               );
                             },
-                            child: RecomTripWidget(
+                            child: UserTripEditWidget(
                               trip: trip,  // Pass the trip to the widget
                             ),
                           ),

@@ -1,13 +1,20 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
+import 'package:gobuddy/pages/place_detail_book.dart';
 import 'package:intl/intl.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../const.dart';
+import '../models/api_service.dart';
+import '../models/itinerary_model.dart';
+import '../models/map_service.dart';
 import '../models/travel_model.dart';
-import 'add_to_cart.dart';
+import 'package:flutter_map/flutter_map.dart';
+
 
 class PlaceDetailScreen extends StatefulWidget {
   final Trip trip;
@@ -40,6 +47,54 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
 
   bool isExpanded = false;
 
+  final String apiKey = 'AIzaSyC_Fdxg404-NJbwkj5BPECWmuMmPDLKLZQ';
+  LatLng? _destinationLocation;
+
+
+  Future<void> _fetchDestination() async {
+    try {
+      LatLng? location =
+      await MapService.fetchCoordinates("${widget.trip.location}, India");
+
+      if (mounted) {
+        if (location != null) {
+          setState(() {
+            _destinationLocation = location;
+          });
+
+          // ✅ Move map to new location
+          MapService.mapController.move(location, 7.0);
+        } else {
+          if (mounted) {
+            setState(() {
+              print("Location not found.");
+            });
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          print("Error in _fetchDestination: $e");
+        });
+      }
+    }
+  }
+
+  void _openGoogleMaps() async {
+    final googleMapsUrl =
+        "https://www.google.com/maps?q=${_destinationLocation!.latitude},${_destinationLocation!.longitude}";
+
+    final Uri uri = Uri.parse(googleMapsUrl);
+
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      debugPrint("Could not open Google Maps.");
+    }
+  }
+
+
   Future<void> openWhatsApp() async {
 
     final Uri whatsappUrl = Uri.parse("https://wa.me/${widget.trip.whatsappInfo}"); // Web-based method
@@ -55,13 +110,15 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
     }
   }
 
+
+
   void shareTrip() {
 
     String tripDetails = '''
-📍 *${widget.trip.name}*
-📌 Destination: ${widget.trip.location}
-🗓 Start Date: ${widget.trip.startDate != null ? widget.trip.startDate!.toLocal().toString().split(' ')[0] : "Not provided"}
-🏁 End Date: ${widget.trip.endDate != null ? widget.trip.endDate!.toLocal().toString().split(' ')[0] : "Not provided"}
+📌 *Destination: ${widget.trip.location}*
+📍 *${widget.trip.from} to ${widget.trip.to}*
+🗓 Start Date: ${formatDateTimeForShare(widget.trip.startDateTime)}
+🏁 End Date: ${formatDateTimeForShare(widget.trip.endDateTime)}
 🕒 Duration: ${widget.trip.daysOfTrip} days
 💰 Price: \Rs. ${widget.trip.price}
 🚗 Transportation: ${widget.trip.transportation}
@@ -77,14 +134,26 @@ ${widget.trip.image.isNotEmpty ? widget.trip.image.first : "No image available"}
 
   void _reportTrip() {
     showModalBottomSheet(
+      backgroundColor: Colors.white,
       context: context,
       isScrollControlled: true,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (context) => ReportTripCard(trip: widget.trip,),
+      builder: (context) {
+        return DraggableScrollableSheet(
+          expand: false, // Prevents full-screen modal behavior
+          builder: (context, scrollController) {
+            return SingleChildScrollView(
+              controller: scrollController,
+              child: ReportTripCard(trip: widget.trip),
+            );
+          },
+        );
+      },
     );
   }
+
 
   @override
   void initState() {
@@ -92,8 +161,19 @@ ${widget.trip.image.isNotEmpty ? widget.trip.image.first : "No image available"}
     _fetchTripAndState();
     _fetchHostDetails();
     _fetchTripRatings();
+    _fetchDestination();
   }
 
+
+  String formatDateTimeForShare(DateTime? dateTime) {
+    if (dateTime == null) return "N/A";
+    return DateFormat('MMM dd, yyyy, hh:mm a').format(dateTime.toLocal()); // Example: Mar 28, 2025 • 11:41 PM
+  }
+
+  String formatDateTime(DateTime? dateTime) {
+    if (dateTime == null) return "N/A";
+    return DateFormat('MMM dd, yyyy\n    hh:mm a').format(dateTime.toLocal()); // Example: Mar 28, 2025 • 11:41 PM
+  }
 
   Future<void> _fetchHostDetails() async {
     try {
@@ -114,6 +194,9 @@ ${widget.trip.image.isNotEmpty ? widget.trip.image.first : "No image available"}
 
   // Fetch trip ID and check if it's saved
   Future<void> _fetchTripAndState() async {
+
+    ;
+
     String userId = _auth.currentUser!.uid;
 
     QuerySnapshot tripSnapshot = await _firestore
@@ -235,48 +318,6 @@ ${widget.trip.image.isNotEmpty ? widget.trip.image.first : "No image available"}
     );
   }
 
-  Future<void> addToCart(Trip trip, BuildContext context) async {
-    String userId = FirebaseAuth.instance.currentUser!.uid;
-    CollectionReference cartRef = FirebaseFirestore.instance
-        .collection('cart')
-        .doc(userId)
-        .collection('cartItems');
-
-    DocumentSnapshot tripSnapshot = await cartRef.doc(trip.id).get();
-
-    if (tripSnapshot.exists) {
-      // Trip already in cart, update person count and total price
-      int existingPersons = tripSnapshot['persons'];
-      int newPersons = existingPersons + 1;
-      double newTotalPrice = newPersons * trip.price;
-
-      await cartRef.doc(trip.id).update({
-        'persons': newPersons,
-        'totalPrice': newTotalPrice,
-      });
-    } else {
-      // Add trip to cart for the first time
-      await cartRef.doc(trip.id).set({
-        'tripId':trip.id,
-        'userId':userId,
-        'title': trip.name,
-        'destination': trip.location,
-        'tripFee': trip.price,
-        'imageUrl': trip.image.isNotEmpty ? trip.image[0] : null, // First image
-        'persons': 1, // Default is 1 person
-        'totalPrice': trip.price,
-        "status": "Pending",// 1 * tripFee
-        'timestamp': FieldValue.serverTimestamp(),
-      });
-    }
-
-    // Navigate to AddToCartPage after adding the trip
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => AddToCartPage()),
-    );
-  }
-
 
 
   @override
@@ -321,13 +362,6 @@ ${widget.trip.image.isNotEmpty ? widget.trip.image.first : "No image available"}
                   .doc(widget.trip.id)
                   .snapshots(),
               builder: (context, snapshot) {
-                if (!snapshot.hasData || snapshot.hasError) {
-                  return IconButton(
-                    icon: const Icon(Icons.favorite_border, color: Colors.grey),
-                    onPressed: null, // Disable button if data is not ready
-                  );
-                }
-
                 // ✅ Ensure `savedBy` exists before accessing it
                 Map<String, dynamic>? data = snapshot.data?.data() as Map<String, dynamic>?;
 
@@ -347,6 +381,7 @@ ${widget.trip.image.isNotEmpty ? widget.trip.image.first : "No image available"}
 
           ),
         PopupMenuButton<String>(
+          color: Colors.white,
           onSelected: (value) {
             if (value == 'share') {
               shareTrip();
@@ -359,7 +394,7 @@ ${widget.trip.image.isNotEmpty ? widget.trip.image.first : "No image available"}
               value: 'share',
               child: Row(
                 children: [
-                  Icon(Icons.share, color: Colors.black54),
+                  Icon(Icons.share, color: Color(0xFF134277)),
                   SizedBox(width: 8),
                   Text("Share"),
                 ],
@@ -369,7 +404,7 @@ ${widget.trip.image.isNotEmpty ? widget.trip.image.first : "No image available"}
               value: 'report',
               child: Row(
                 children: [
-                  Icon(Icons.report, color: Colors.redAccent),
+                  Icon(Icons.report, color: Color(0xFF134277)),
                   SizedBox(width: 8),
                   Text("Report a Trip"),
                   ],
@@ -382,7 +417,6 @@ ${widget.trip.image.isNotEmpty ? widget.trip.image.first : "No image available"}
       body: Padding(
         padding: const EdgeInsets.all(15),
         child: SingleChildScrollView(
-
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -413,9 +447,11 @@ ${widget.trip.image.isNotEmpty ? widget.trip.image.first : "No image available"}
                         },
                         children: List.generate(
                           widget.trip.image.length,
-                          (index) => Image.network(
+                          (index) => CachedNetworkImage(
                             fit: BoxFit.cover,
-                            widget.trip.image[index],
+                            imageUrl: widget.trip.image[index],
+                            placeholder: (context, url) => Center(child: CircularProgressIndicator()),
+                            errorWidget: (context, url, error) => Icon(Icons.error, size: 40, color: Colors.red),
                           ),
                         ),
                       ),
@@ -431,19 +467,13 @@ ${widget.trip.image.isNotEmpty ? widget.trip.image.first : "No image available"}
                               margin: const EdgeInsets.only(
                                   right: 10, bottom: 10),
                               decoration: BoxDecoration(
-                                border: Border.all(
-                                  width: 2,
-                                  color: Colors.white,
-                                ),
+                                border: Border.all(width: 2, color: Colors.white),
                                 borderRadius: BorderRadius.circular(15),
                                 image: DecorationImage(
-                                  image:
-                                  widget.trip.image.length - 1 != pageView
-                                      ? NetworkImage(
-                                    widget.trip.image[pageView + 1],
-                                  )
-                                      : NetworkImage(
-                                    widget.trip.image[0],
+                                  image: CachedNetworkImageProvider(
+                                    widget.trip.image.length - 1 != pageView
+                                        ? widget.trip.image[pageView + 1]
+                                        : widget.trip.image[0],
                                   ),
                                   fit: BoxFit.cover,
                                 ),
@@ -504,7 +534,7 @@ ${widget.trip.image.isNotEmpty ? widget.trip.image.first : "No image available"}
                                         CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            widget.trip.name,
+                                            "${widget.trip.from} To ${widget.trip.to}",
                                             style: const TextStyle(
                                               fontSize: 20,
                                               color: Colors.white,
@@ -554,15 +584,15 @@ ${widget.trip.image.isNotEmpty ? widget.trip.image.first : "No image available"}
                                                   ),
                                                 ],
                                               ),
-                                              const SizedBox(height: 5),
-                                              Text(
-                                                '($reviewCount reviews)', // Fetch total reviews
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                              ),
+                                              // const SizedBox(height: 5),
+                                              // Text(
+                                              //   '($reviewCount reviews)', // Fetch total reviews
+                                              //   style: const TextStyle(
+                                              //     color: Colors.white,
+                                              //     fontSize: 14,
+                                              //     fontWeight: FontWeight.w500,
+                                              //   ),
+                                              // ),
                                             ],
                                        ),
                                     ],
@@ -577,14 +607,60 @@ ${widget.trip.image.isNotEmpty ? widget.trip.image.first : "No image available"}
                   ),
                 ),
               ),
-              SizedBox(height: 10,),
+
+              //Start And Dte Time Date
+              SizedBox(height: 15,),
+              Container(
+                width: MediaQuery.of(context).size.width,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        padding: EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade100,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.blue),
+                        ),
+                        child: Column(
+                          children: [
+                            Text("Start Date & Time", style: TextStyle(fontWeight: FontWeight.bold)),
+                            SizedBox(height: 5),
+                            Text(formatDateTime(widget.trip.startDateTime), style: TextStyle(fontSize: 16)),
+                          ],
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: 14),
+                    Expanded(
+                      child: Container(
+                        padding: EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade100,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.red),
+                        ),
+                        child: Column(
+                          children: [
+                            Text("End Date & Time", style: TextStyle(fontWeight: FontWeight.bold)),
+                            SizedBox(height: 5),
+                            Text(formatDateTime(widget.trip.endDateTime), style: TextStyle(fontSize: 16)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              //OverView
+              SizedBox(height: 20,),
               Padding(
-                padding: const EdgeInsets.all(4.0),
+                padding: const EdgeInsets.all(2.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Title
                     Text(
                       "Overview : ",
                       style: TextStyle(
@@ -594,8 +670,6 @@ ${widget.trip.image.isNotEmpty ? widget.trip.image.first : "No image available"}
                       ),
                     ),
                     SizedBox(height: 10),
-
-                    // Description
                     Text(
                       widget.trip.des,
                       style: const TextStyle(
@@ -604,553 +678,586 @@ ${widget.trip.image.isNotEmpty ? widget.trip.image.first : "No image available"}
                         height: 1.5,
                       ),
                     ),
-                    //additional info
+
+                    //Itinerary
                     SizedBox(height: 10),
-                    ExpansionTile(
-                      title: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            "Additional Info",
-                            style: TextStyle(
-                              fontWeight: FontWeight.w400,
-                              fontSize: 16,
-                              color: Colors.black87,
-                            ),
-                          ),
-                        ],
-                      ),
-                      tilePadding: EdgeInsets.symmetric(horizontal: 10, vertical: 0),
-                      childrenPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                      collapsedBackgroundColor: Colors.white,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          mainAxisAlignment:
-                          MainAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Trip Category : ",
-                              style: TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.black),
-                            ),
-                            Expanded(
-                              child: Text(
-                                widget.trip.tripCategory,
-                                style: const TextStyle(
-                                  color: Colors.black87,
-                                  fontSize: 15,
-                                  height: 1.5,
+                        Text(
+                          "Itinerary:",
+                          style: TextStyle(
+                            color: Colors.black,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 22,
+                          ),
+                        ),
+                        SizedBox(height: 12),
+                        ListView.builder(
+                          shrinkWrap: true,
+                          physics: NeverScrollableScrollPhysics(),
+                          itemCount: widget.trip.itinerary.length,
+                          itemBuilder: (context, index) {
+                            return Card(
+                              color: Colors.white,
+                              elevation: 2, // Soft shadow
+                              margin: EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              child: ListTile(
+                                contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                                leading: CircleAvatar(
+                                  backgroundColor: Color(0xFF134277),
+                                  child: Text(
+                                    "${index + 1}",
+                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                                title: Text(
+                                  "Day ${index + 1}",
+                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.black87),
+                                ),
+                                subtitle: Text(
+                                  widget.trip.itinerary[index],
+                                  style: TextStyle(fontSize: 14, color: Colors.black54),
                                 ),
                               ),
-                            ),
-                          ],
+                            );
+                          },
                         ),
-                        SizedBox(height: 7,),
-                        Row(
-                          mainAxisAlignment:
-                          MainAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Meeting Point : ",
-                              style: TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.black),
-                            ),
-                            Expanded(
-                              child: Text(
-                                widget.trip.meetingPoint,
-                                style: const TextStyle(
-                                  color: Colors.black87,
-                                  fontSize: 15,
-                                  height: 1.5,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 7,),
-                        Row(
-                          mainAxisAlignment:
-                          MainAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Transportation : ",
-                              style: TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.black),
-                            ),
-                            Expanded(
-                              child: Text(
-                                widget.trip.transportation,
-                                style: const TextStyle(
-                                  color: Colors.black87,
-                                  fontSize: 15,
-                                  height: 1.5,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 7,),
-                        Row(
-                          mainAxisAlignment:
-                          MainAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Maximum Participants : ",
-                              style: TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.black),
-                            ),
-                            Expanded(
-                              child: Text(
-                                widget.trip.maxpart.toString(),
-                                style: const TextStyle(
-                                  color: Colors.black87,
-                                  fontSize: 15,
-                                  height: 1.5,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 7,),
-                        Row(
-                          mainAxisAlignment:
-                          MainAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Trip Days : ",
-                              style: TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.black),
-                            ),
-                            Expanded(
-                              child: Text(
-                                widget.trip.daysOfTrip.toString(),
-                                style: const TextStyle(
-                                  color: Colors.black87,
-                                  fontSize: 15,
-                                  height: 1.5,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 10),
-                        Row(
-                          mainAxisAlignment:
-                          MainAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Trip Start Date ",
-                              style: TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.black),
-                            ),
-                            Expanded(
-                              child: Text(
-                                widget.trip.startDate!.toLocal().toString().split(' ')[0],
-                                style: const TextStyle(
-                                  color: Colors.black87,
-                                  fontSize: 15,
-                                  height: 1.5,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 10),
-                        Row(
-                          mainAxisAlignment:
-                          MainAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Trip Start Time : ",
-                              style: TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.black),
-                            ),
-                            Expanded(
-                              child: Text(
-                                widget.trip.startTime.toString(),
-                                style: const TextStyle(
-                                  color: Colors.black87,
-                                  fontSize: 15,
-                                  height: 1.5,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 10),
-                        Row(
-                          mainAxisAlignment:
-                          MainAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Trip End Date ",
-                              style: TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.black),
-                            ),
-                            Expanded(
-                              child: Text(
-                                widget.trip.endDate!.toLocal().toString().split(' ')[0],
-                                style: const TextStyle(
-                                  color: Colors.black87,
-                                  fontSize: 15,
-                                  height: 1.5,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 10),
-                        Row(
-                          mainAxisAlignment:
-                          MainAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Trip End Time : ",
-                              style: TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.black),
-                            ),
-                            Expanded(
-                              child: Text(
-                                widget.trip.endTime.toString(),
-                                style: const TextStyle(
-                                  color: Colors.black87,
-                                  fontSize: 15,
-                                  height: 1.5,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 10),
+
                       ],
                     ),
+                    Divider(),
+
+                    //Additonal Info
+
+                    // ExpansionTile(
+                    //   title: Row(
+                    //     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    //     children: [
+                    //       Text(
+                    //         "Additional Info",
+                    //         style: TextStyle(
+                    //           fontWeight: FontWeight.w400,
+                    //           fontSize: 16,
+                    //           color: Colors.black87,
+                    //         ),
+                    //       ),
+                    //     ],
+                    //   ),
+                    //   tilePadding: EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                    //   childrenPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    //   collapsedBackgroundColor: Colors.white,
+                    //   children: [
+                    //     Row(
+                    //       mainAxisAlignment:
+                    //       MainAxisAlignment.start,
+                    //       children: [
+                    //         Text(
+                    //           "Trip Category : ",
+                    //           style: TextStyle(
+                    //               fontWeight: FontWeight.w500,
+                    //               color: Colors.black),
+                    //         ),
+                    //         Expanded(
+                    //           child: Text(
+                    //             widget.trip.tripCategory,
+                    //             style: const TextStyle(
+                    //               color: Colors.black87,
+                    //               fontSize: 15,
+                    //               height: 1.5,
+                    //             ),
+                    //           ),
+                    //         ),
+                    //       ],
+                    //     ),
+                    //     SizedBox(height: 7,),
+                    //     Row(
+                    //       mainAxisAlignment:
+                    //       MainAxisAlignment.start,
+                    //       children: [
+                    //         Text(
+                    //           "Meeting Point : ",
+                    //           style: TextStyle(
+                    //               fontWeight: FontWeight.w500,
+                    //               color: Colors.black),
+                    //         ),
+                    //         Expanded(
+                    //           child: Text(
+                    //             widget.trip.meetingPoint,
+                    //             style: const TextStyle(
+                    //               color: Colors.black87,
+                    //               fontSize: 15,
+                    //               height: 1.5,
+                    //             ),
+                    //           ),
+                    //         ),
+                    //       ],
+                    //     ),
+                    //     SizedBox(height: 7,),
+                    //     Row(
+                    //       mainAxisAlignment:
+                    //       MainAxisAlignment.start,
+                    //       children: [
+                    //         Text(
+                    //           "Transportation : ",
+                    //           style: TextStyle(
+                    //               fontWeight: FontWeight.w500,
+                    //               color: Colors.black),
+                    //         ),
+                    //         Expanded(
+                    //           child: Text(
+                    //             widget.trip.transportation,
+                    //             style: const TextStyle(
+                    //               color: Colors.black87,
+                    //               fontSize: 15,
+                    //               height: 1.5,
+                    //             ),
+                    //           ),
+                    //         ),
+                    //       ],
+                    //     ),
+                    //     SizedBox(height: 7,),
+                    //     Row(
+                    //       mainAxisAlignment:
+                    //       MainAxisAlignment.start,
+                    //       children: [
+                    //         Text(
+                    //           "Maximum Participants : ",
+                    //           style: TextStyle(
+                    //               fontWeight: FontWeight.w500,
+                    //               color: Colors.black),
+                    //         ),
+                    //         Expanded(
+                    //           child: Text(
+                    //             widget.trip.maxpart.toString(),
+                    //             style: const TextStyle(
+                    //               color: Colors.black87,
+                    //               fontSize: 15,
+                    //               height: 1.5,
+                    //             ),
+                    //           ),
+                    //         ),
+                    //       ],
+                    //     ),
+                    //     SizedBox(height: 7,),
+                    //     Row(
+                    //       mainAxisAlignment:
+                    //       MainAxisAlignment.start,
+                    //       children: [
+                    //         Text(
+                    //           "Trip Days : ",
+                    //           style: TextStyle(
+                    //               fontWeight: FontWeight.w500,
+                    //               color: Colors.black),
+                    //         ),
+                    //         Expanded(
+                    //           child: Text(
+                    //             widget.trip.daysOfTrip.toString(),
+                    //             style: const TextStyle(
+                    //               color: Colors.black87,
+                    //               fontSize: 15,
+                    //               height: 1.5,
+                    //             ),
+                    //           ),
+                    //         ),
+                    //       ],
+                    //     ),
+                    //     SizedBox(height: 10),
+                    //     Row(
+                    //       mainAxisAlignment:
+                    //       MainAxisAlignment.start,
+                    //       children: [
+                    //         Text(
+                    //           "Trip Start Date ",
+                    //           style: TextStyle(
+                    //               fontWeight: FontWeight.w500,
+                    //               color: Colors.black),
+                    //         ),
+                    //         Expanded(
+                    //           child: Text(
+                    //             widget.trip.startDate!.toLocal().toString().split(' ')[0],
+                    //             style: const TextStyle(
+                    //               color: Colors.black87,
+                    //               fontSize: 15,
+                    //               height: 1.5,
+                    //             ),
+                    //           ),
+                    //         ),
+                    //       ],
+                    //     ),
+                    //     SizedBox(height: 10),
+                    //     Row(
+                    //       mainAxisAlignment:
+                    //       MainAxisAlignment.start,
+                    //       children: [
+                    //         Text(
+                    //           "Trip Start Time : ",
+                    //           style: TextStyle(
+                    //               fontWeight: FontWeight.w500,
+                    //               color: Colors.black),
+                    //         ),
+                    //         Expanded(
+                    //           child: Text(
+                    //             widget.trip.startTime.toString(),
+                    //             style: const TextStyle(
+                    //               color: Colors.black87,
+                    //               fontSize: 15,
+                    //               height: 1.5,
+                    //             ),
+                    //           ),
+                    //         ),
+                    //       ],
+                    //     ),
+                    //     SizedBox(height: 10),
+                    //     Row(
+                    //       mainAxisAlignment:
+                    //       MainAxisAlignment.start,
+                    //       children: [
+                    //         Text(
+                    //           "Trip End Date ",
+                    //           style: TextStyle(
+                    //               fontWeight: FontWeight.w500,
+                    //               color: Colors.black),
+                    //         ),
+                    //         Expanded(
+                    //           child: Text(
+                    //             widget.trip.endDate!.toLocal().toString().split(' ')[0],
+                    //             style: const TextStyle(
+                    //               color: Colors.black87,
+                    //               fontSize: 15,
+                    //               height: 1.5,
+                    //             ),
+                    //           ),
+                    //         ),
+                    //       ],
+                    //     ),
+                    //     SizedBox(height: 10),
+                    //     Row(
+                    //       mainAxisAlignment:
+                    //       MainAxisAlignment.start,
+                    //       children: [
+                    //         Text(
+                    //           "Trip End Time : ",
+                    //           style: TextStyle(
+                    //               fontWeight: FontWeight.w500,
+                    //               color: Colors.black),
+                    //         ),
+                    //         Expanded(
+                    //           child: Text(
+                    //             widget.trip.endTime.toString(),
+                    //             style: const TextStyle(
+                    //               color: Colors.black87,
+                    //               fontSize: 15,
+                    //               height: 1.5,
+                    //             ),
+                    //           ),
+                    //         ),
+                    //       ],
+                    //     ),
+                    //     SizedBox(height: 10),
+                    //   ],
+                    // ),
+
                     //accommadation
-                    SizedBox(height: 10),
-                    ExpansionTile(
-                      title: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            "Accommodation Details",
-                            style: TextStyle(
-                              fontWeight: FontWeight.w400,
-                              fontSize: 16,
-                              color: Colors.black87,
-                            ),
-                          ),
-                        ],
-                      ),
-                      tilePadding: EdgeInsets.symmetric(horizontal: 10, vertical: 0),
-                      childrenPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                      collapsedBackgroundColor: Colors.white,
-                      children: [
-                        Row(
-                          mainAxisAlignment:
-                          MainAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                widget.trip.accommodation,
-                                style: const TextStyle(
-                                  color: Colors.black87,
-                                  fontSize: 15,
-                                  height: 1.5,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 10),
-                      ],
-                    ),
+
+                    // SizedBox(height: 10),
+                    // ExpansionTile(
+                    //   title: Row(
+                    //     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    //     children: [
+                    //       Text(
+                    //         "Accommodation Details",
+                    //         style: TextStyle(
+                    //           fontWeight: FontWeight.w400,
+                    //           fontSize: 16,
+                    //           color: Colors.black87,
+                    //         ),
+                    //       ),
+                    //     ],
+                    //   ),
+                    //   tilePadding: EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                    //   childrenPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    //   collapsedBackgroundColor: Colors.white,
+                    //   children: [
+                    //     Row(
+                    //       mainAxisAlignment:
+                    //       MainAxisAlignment.start,
+                    //       children: [
+                    //         Expanded(
+                    //           child: Text(
+                    //             widget.trip.accommodation,
+                    //             style: const TextStyle(
+                    //               color: Colors.black87,
+                    //               fontSize: 15,
+                    //               height: 1.5,
+                    //             ),
+                    //           ),
+                    //         ),
+                    //       ],
+                    //     ),
+                    //     SizedBox(height: 10),
+                    //   ],
+                    // ),
+
                     //included service
-                    SizedBox(height: 10),
-                    ExpansionTile(
-                      title: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            "Included Service",
-                            style: TextStyle(
-                              fontWeight: FontWeight.w400,
-                              fontSize: 16,
-                              color: Colors.black87,
-                            ),
-                          ),
-                        ],
-                      ),
-                      tilePadding: EdgeInsets.symmetric(horizontal: 10, vertical: 0),
-                      childrenPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                      collapsedBackgroundColor: Colors.white,
-                      children: [
-                        Row(
-                          mainAxisAlignment:
-                          MainAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                widget.trip.includedServices,
-                                style: const TextStyle(
-                                  color: Colors.black87,
-                                  fontSize: 15,
-                                  height: 1.5,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 10),
-                      ],
-                    ),
+
+                    // SizedBox(height: 10),
+                    // ExpansionTile(
+                    //   title: Row(
+                    //     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    //     children: [
+                    //       Text(
+                    //         "Included Service",
+                    //         style: TextStyle(
+                    //           fontWeight: FontWeight.w400,
+                    //           fontSize: 16,
+                    //           color: Colors.black87,
+                    //         ),
+                    //       ),
+                    //     ],
+                    //   ),
+                    //   tilePadding: EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                    //   childrenPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    //   collapsedBackgroundColor: Colors.white,
+                    //   children: [
+                    //     Row(
+                    //       mainAxisAlignment:
+                    //       MainAxisAlignment.start,
+                    //       children: [
+                    //         Expanded(
+                    //           child: Text(
+                    //             widget.trip.includedServices,
+                    //             style: const TextStyle(
+                    //               color: Colors.black87,
+                    //               fontSize: 15,
+                    //               height: 1.5,
+                    //             ),
+                    //           ),
+                    //         ),
+                    //       ],
+                    //     ),
+                    //     SizedBox(height: 10),
+                    //   ],
+                    // ),
+
                     //Itms to bring
-                    SizedBox(height: 10),
-                    ExpansionTile(
-                      title: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            "Items to Bring",
-                            style: TextStyle(
-                              fontWeight: FontWeight.w400,
-                              fontSize: 16,
-                              color: Colors.black87,
-                            ),
-                          ),
-                        ],
-                      ),
-                      tilePadding: EdgeInsets.symmetric(horizontal: 10, vertical: 0),
-                      childrenPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                      collapsedBackgroundColor: Colors.white,
-                      children: [
-                        Row(
-                          mainAxisAlignment:
-                          MainAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                widget.trip.itemsToBring,
-                                style: const TextStyle(
-                                  color: Colors.black87,
-                                  fontSize: 15,
-                                  height: 1.5,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 10),
-                      ],
-                    ),
+
+                    // SizedBox(height: 10),
+                    // ExpansionTile(
+                    //   title: Row(
+                    //     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    //     children: [
+                    //       Text(
+                    //         "Items to Bring",
+                    //         style: TextStyle(
+                    //           fontWeight: FontWeight.w400,
+                    //           fontSize: 16,
+                    //           color: Colors.black87,
+                    //         ),
+                    //       ),
+                    //     ],
+                    //   ),
+                    //   tilePadding: EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                    //   childrenPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    //   collapsedBackgroundColor: Colors.white,
+                    //   children: [
+                    //     Row(
+                    //       mainAxisAlignment:
+                    //       MainAxisAlignment.start,
+                    //       children: [
+                    //         Expanded(
+                    //           child: Text(
+                    //             widget.trip.itemsToBring,
+                    //             style: const TextStyle(
+                    //               color: Colors.black87,
+                    //               fontSize: 15,
+                    //               height: 1.5,
+                    //             ),
+                    //           ),
+                    //         ),
+                    //       ],
+                    //     ),
+                    //     SizedBox(height: 10),
+                    //   ],
+                    // ),
+
                     //Guidlines and rule
-                    SizedBox(height: 10),
-                    ExpansionTile(
-                      title: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            "Guidlines And Rules",
-                            style: TextStyle(
-                              fontWeight: FontWeight.w400,
-                              fontSize: 16,
-                              color: Colors.black87,
-                            ),
-                          ),
-                        ],
-                      ),
-                      tilePadding: EdgeInsets.symmetric(horizontal: 10, vertical: 0),
-                      childrenPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                      collapsedBackgroundColor: Colors.white,
-                      children: [
-                        Row(
-                          mainAxisAlignment:
-                          MainAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                widget.trip.guidelines,
-                                style: const TextStyle(
-                                  color: Colors.black87,
-                                  fontSize: 15,
-                                  height: 1.5,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 10),
-                      ],
-                    ),
+
+                    // SizedBox(height: 10),
+                    // ExpansionTile(
+                    //   title: Row(
+                    //     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    //     children: [
+                    //       Text(
+                    //         "Guidlines And Rules",
+                    //         style: TextStyle(
+                    //           fontWeight: FontWeight.w400,
+                    //           fontSize: 16,
+                    //           color: Colors.black87,
+                    //         ),
+                    //       ),
+                    //     ],
+                    //   ),
+                    //   tilePadding: EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                    //   childrenPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    //   collapsedBackgroundColor: Colors.white,
+                    //   children: [
+                    //     Row(
+                    //       mainAxisAlignment:
+                    //       MainAxisAlignment.start,
+                    //       children: [
+                    //         Expanded(
+                    //           child: Text(
+                    //             widget.trip.guidelines,
+                    //             style: const TextStyle(
+                    //               color: Colors.black87,
+                    //               fontSize: 15,
+                    //               height: 1.5,
+                    //             ),
+                    //           ),
+                    //         ),
+                    //       ],
+                    //     ),
+                    //     SizedBox(height: 10),
+                    //   ],
+                    // ),
+
                     //cancellation policy
-                    SizedBox(height: 10),
-                    ExpansionTile(
-                      title: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            "Cancellation Policy",
-                            style: TextStyle(
-                              fontWeight: FontWeight.w400,
-                              fontSize: 16,
-                              color: Colors.black87,
-                            ),
-                          ),
-                        ],
-                      ),
-                      tilePadding: EdgeInsets.symmetric(horizontal: 10, vertical: 0),
-                      childrenPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                      collapsedBackgroundColor: Colors.white,
-                      children: [
-                        Row(
-                          mainAxisAlignment:
-                          MainAxisAlignment.start,
+
+                    // SizedBox(height: 10),
+                    // ExpansionTile(
+                    //   title: Row(
+                    //     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    //     children: [
+                    //       Text(
+                    //         "Cancellation Policy",
+                    //         style: TextStyle(
+                    //           fontWeight: FontWeight.w400,
+                    //           fontSize: 16,
+                    //           color: Colors.black87,
+                    //         ),
+                    //       ),
+                    //     ],
+                    //   ),
+                    //   tilePadding: EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                    //   childrenPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    //   collapsedBackgroundColor: Colors.white,
+                    //   children: [
+                    //     Row(
+                    //       mainAxisAlignment:
+                    //       MainAxisAlignment.start,
+                    //       children: [
+                    //         Expanded(
+                    //           child: Text(
+                    //             widget.trip.cancellationPolicy,
+                    //             style: const TextStyle(
+                    //               color: Colors.black87,
+                    //               fontSize: 15,
+                    //               height: 1.5,
+                    //             ),
+                    //           ),
+                    //         ),
+                    //       ],
+                    //     ),
+                    //     SizedBox(height: 10),
+                    //   ],
+                    // ),
+
+                    //Host info & contect
+                    Card(
+                      color: Colors.white,
+                      elevation: 4,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      child: Padding(
+                        padding: const EdgeInsets.all(18.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                              child: Text(
-                                widget.trip.cancellationPolicy,
-                                style: const TextStyle(
-                                  color: Colors.black87,
-                                  fontSize: 15,
-                                  height: 1.5,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 10),
-                      ],
-                    ),
-                    //contect
-                    SizedBox(height: 10),
-                    ExpansionTile(
-                      title: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            "Host Info",
-                            style: TextStyle(
-                              fontWeight: FontWeight.w400,
-                              fontSize: 16,
-                              color: Colors.black87,
-                            ),
-                          ),
-                        ],
-                      ),
-                      tilePadding: EdgeInsets.symmetric(horizontal: 10, vertical: 0),
-                      childrenPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                      collapsedBackgroundColor: Colors.white,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            CircleAvatar(
-                              radius: 30,
-                              backgroundImage: hostData?['profilePic'] != null
-                                  ? NetworkImage(hostData!['profilePic'])
-                                  : null,
-                              child:hostData?['profilePic'] == null
-                                  ? Icon(Icons.person, color: Colors.grey[700], )
-                                  : null,
-                            ),
-                            SizedBox(width: 12),
-                            // Host Name
-                            Column(
+                            // Trip Host Info Title
+                            Row(
                               children: [
                                 Text(
-                                  hostData?['username'] ?? "Loading...",
-                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                                  "Trip Host Info : ",
+                                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 20),
                                 ),
-                                Text(
-                                  "The Host",
-                                  style: TextStyle(fontSize: 15)
+                              ],
+                            ),
+                            SizedBox(height: 10),
+
+                            // Host Profile Picture & Name
+                            Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 35,
+                                  backgroundImage: hostData?['profilePic'] != null
+                                      ? NetworkImage(hostData!['profilePic'])
+                                      : null,
+                                  child: hostData?['profilePic'] == null
+                                      ? Icon(Icons.person, color: Colors.grey[700], size: 30)
+                                      : null,
+                                ),
+                                SizedBox(width: 12),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      hostData?['username'] ?? "Loading...",
+                                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                                    ),
+                                    Text(
+                                      "The Host",
+                                      style: TextStyle(fontSize: 15, color: Colors.black54),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: 10),
+
+                            // WhatsApp Number
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    "WhatsApp Number : ${widget.trip.whatsappInfo}",
+                                    style: TextStyle(fontWeight: FontWeight.w500, color: Colors.black87),
+                                  ),
+                                ),
+                                GestureDetector(
+                                  onTap: openWhatsApp,
+                                  child: Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(10),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.grey.withOpacity(0.3),
+                                          spreadRadius: 2,
+                                          blurRadius: 5,
+                                          offset: Offset(0, 3),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Center(
+                                      child: Image.asset('assets/image/wp.png', height: 30, width: 30),
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
                           ],
                         ),
-                        SizedBox(height: 7,),
-                        Row(
-                          mainAxisAlignment:
-                          MainAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Mobile Number : ",
-                              style: TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.black),
-                            ),
-                            Expanded(
-                              child: Text(
-                                widget.trip.contactInfo,
-                                style: const TextStyle(
-                                  color: Colors.black87,
-                                  fontSize: 15,
-                                  height: 1.5,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 7,),
-                        Row(
-                          mainAxisAlignment:
-                          MainAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Whatsapp Number : ",
-                              style: TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.black),
-                            ),
-                            Text(
-                              widget.trip.whatsappInfo,
-                              style: const TextStyle(
-                                color: Colors.black87,
-                                fontSize: 15,
-                                height: 1.5,
-                              ),
-                            ),
-                            SizedBox(width: 10,),
-                            GestureDetector(
-                              onTap: openWhatsApp,
-                              child: Container(
-                                width: 35, // Square container
-                                height: 35,
-                                decoration: BoxDecoration(
-                                  color: Colors.white70, // WhatsApp theme color
-                                  borderRadius: BorderRadius.circular(10),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.grey.withOpacity(0.3),
-                                      spreadRadius: 2,
-                                      blurRadius: 5,
-                                      offset: Offset(0, 3),
-                                    ),
-                                  ],// Square with rounded corners
-                                ),
-                                child: Center(
-                                  child: Image.asset(
-                                    'assets/image/wp.png', // Replace with your Google icon
-                                    height: 30,
-                                    width: 30,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 10),
-                      ],
+                      ),
                     ),
-                    SizedBox(height: 15),
+
+                    SizedBox(height: 5,),
+                    Divider(),
+                    SizedBox(height: 10,),
+
+                    //Rate & Review
 
                     Text("Rate & Review :", style: TextStyle(
                       color: Colors.black,
@@ -1189,7 +1296,7 @@ ${widget.trip.image.isNotEmpty ? widget.trip.image.first : "No image available"}
                       maxLines: 3,
                     ),
 
-                    SizedBox(height: 20),
+                    SizedBox(height: 15),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.start,
                       children: [
@@ -1204,8 +1311,6 @@ ${widget.trip.image.isNotEmpty ? widget.trip.image.first : "No image available"}
                       ],
                     ),
                     SizedBox(height: 5,),
-
-
                     // Fetch and Show Reviews (Expandable)
                     StreamBuilder<QuerySnapshot>(
                       stream: FirebaseFirestore.instance
@@ -1269,6 +1374,88 @@ ${widget.trip.image.isNotEmpty ? widget.trip.image.first : "No image available"}
                         );
                       },
                     ),
+                    SizedBox(height: 10,),
+                    Divider(),
+                    SizedBox(height: 10,),
+                    //Map
+                    Stack(
+                      children: [
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(15),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.2),
+                                blurRadius: 2,
+                                spreadRadius: 2,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(15),
+                            child: SizedBox(
+                              height: 300,
+                              child: _destinationLocation != null
+                                  ? FlutterMap(
+                                options: MapOptions(
+                                  initialCenter: _destinationLocation!,
+                                  initialZoom: 7.0,
+                                  interactionOptions: InteractionOptions(flags: InteractiveFlag.all),
+                                ),
+                                children: [
+                                  TileLayer(
+                                    urlTemplate: "https://tile.thunderforest.com/outdoors/{z}/{x}/{y}.png?apikey=7d2cbd26e9dd49fa990aa14f7a46e329",
+                                  ),
+                                  MarkerLayer(
+                                    markers: [
+                                      Marker(
+                                        width: 60.0,
+                                        height: 60.0,
+                                        point: _destinationLocation!,
+                                        child: Icon(Icons.location_pin, color: Colors.red, size: 40),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              )
+                                  : Center(child: CircularProgressIndicator()),
+                            ),
+                          ),
+                        ),
+
+                        /// **Location Icon Positioned at Top-Right**
+                        Positioned(
+                          top: 10,
+                          right: 10,
+                          child: GestureDetector(
+                            onTap: () {
+                              _openGoogleMaps();
+                            },
+                            child: Container(
+                              padding: EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.2),
+                                    blurRadius: 4,
+                                    spreadRadius: 2,
+                                  ),
+                                ],
+                              ),
+                              child: Icon(
+                                Icons.location_on,
+                                color: Colors.blue, // Change color as needed
+                                size: 28,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
                   ],
                 ),
               )
@@ -1330,7 +1517,12 @@ ${widget.trip.image.isNotEmpty ? widget.trip.image.first : "No image available"}
 
             TextButton(
               onPressed: () {
-                addToCart(widget.trip, context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => PlaceDetailsScreen2(trip: widget.trip),
+                  ),
+                );
               },
               child: Container(
                 padding: const EdgeInsets.symmetric(
@@ -1349,7 +1541,7 @@ ${widget.trip.image.isNotEmpty ? widget.trip.image.first : "No image available"}
                     ),
                     SizedBox(width: 10),
                     Text(
-                      "Add to Cart",
+                      "Book Now",
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
@@ -1553,10 +1745,12 @@ class _ReportTripCardState extends State<ReportTripCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            "Report a Trip",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            "Report a Trip : ",
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
           ),
-          SizedBox(height: 10),
+          SizedBox(height: 5),
+          Divider(),
+          SizedBox(height: 5),
           Text(
             "Please select a reason for reporting this trip:",
             style: TextStyle(fontSize: 14, color: Colors.black54),
@@ -1588,8 +1782,24 @@ class _ReportTripCardState extends State<ReportTripCard> {
               maxLines: 2,
               decoration: InputDecoration(
                 hintText: "Enter details...",
-                border: OutlineInputBorder(
+                filled: true,
+                fillColor: const Color(0xFFBFCFF3),
+                border: InputBorder.none,
+                enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFFBFCFF3), width: 2),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFF134277), width: 2),
+                ),
+                errorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Colors.red, width: 1),
+                ),
+                focusedErrorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Colors.red, width: 2),
                 ),
               ),
             ),
@@ -1601,7 +1811,7 @@ class _ReportTripCardState extends State<ReportTripCard> {
             children: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: Text("Cancel"),
+                child: Text("Cancel",style: TextStyle(color: Color(0xFF134277)),),
               ),
               SizedBox(width: 10),
               ElevatedButton(

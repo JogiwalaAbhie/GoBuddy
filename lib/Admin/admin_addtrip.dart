@@ -5,12 +5,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:gobuddy/Admin/admin_navigation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
 
 import '../const.dart';
+import '../models/api_service.dart';
 
 class AdminAddTripPage extends StatefulWidget {
   const AdminAddTripPage({super.key});
@@ -21,24 +23,30 @@ class AdminAddTripPage extends StatefulWidget {
 
 class _AdminAddTripPageState extends State<AdminAddTripPage> {
 
+  // Itinerary? _itinerary;
+  final String apiKey = 'AIzaSyC_Fdxg404-NJbwkj5BPECWmuMmPDLKLZQ';
+
+  static const String ajapiKey = "AIzaSyC7yH2LhTEKXkBGeEuCIX-p5LOdASycP5Q";
+
+  late GeminiApi _api;
+
   final _formKey = GlobalKey<FormState>();
   String? userId = FirebaseAuth.instance.currentUser?.uid;
 
   String? _tripTitle;
   String? _hostusername;
   String? _destination;
-  DateTime? _startDate;
-  TimeOfDay? _startTime;
-  DateTime? _endDate;
-  TimeOfDay? _endTime;
-  String? _description;
   String? _meetingPoint;
   String? _accommodation;
   int? _maxParticipants;
   double? _tripFee;
-  String? _includedServices;
-  String? _contactInfo;
   String? _wacontactinfo;
+  String fromLocation = "";
+  String toLocation = "";
+
+  DateTime? _startDateTime;
+  DateTime? _endDateTime;
+
   String itemsToBring = "Valid ID proof\nComfortable clothing\nWater bottle\nPersonal medications";
   String guidelinesAndRules = "No littering in the area\nRespect local culture\nFollow the guide’s instructions\nNo smoking in restricted areas\nPets are not allowed";
   String cancellationPolicy = "Full refund if canceled 48 hours before\n50% refund if canceled 24 hours before\nNo refund for cancellations within 24 hours";
@@ -47,16 +55,16 @@ class _AdminAddTripPageState extends State<AdminAddTripPage> {
 
   String? _selectedCategory = "";
   final List<String> tripcat = [
-    "Adventure Trips",
+    "Adventure",
     "Beach Vacations",
-    "Cultural & Historical Tours",
+    "Historical Tours",
     "Road Trips",
-    "Volunteer & Humanitarian Trips",
-    "Wellness Trips"
+    "Volunteer & Humanitarian",
+    "Wellness"
   ];
 
   String? selectedTransport;
-  List<String> transport = ["Car", "Bus", "Train", "Flight", "Bike"];
+  List<String> transport = ["Car", "Bus", "Train", "Flight"];
 
   final ImagePicker _picker = ImagePicker();
   List<File> _selectedImages = [];
@@ -163,10 +171,45 @@ class _AdminAddTripPageState extends State<AdminAddTripPage> {
     "Tawang, Arunachal Pradesh",
   ];
 
+  List<String> allServices = [
+    "Transport", "Food & Drinks", "Tour Guide",
+    "Emergency Help", "Luggage Support",
+    "WiFi & Entertainment", "Photography"
+  ];
+  List<String> _includedServices = [];
+
+  // Function to pick a date & time
+  Future<DateTime?> _pickDateTime(BuildContext context, {DateTime? firstDate}) async {
+    DateTime? pickedDate = await showDatePicker(
+      context: context,
+      initialDate: firstDate ?? DateTime.now(),
+      firstDate: firstDate ?? DateTime.now(),
+      lastDate: DateTime(2100),
+    );
+
+    if (pickedDate == null) return null; // User canceled
+
+    TimeOfDay? pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+    );
+
+    if (pickedTime == null) return null; // User canceled
+
+    return DateTime(
+      pickedDate.year,
+      pickedDate.month,
+      pickedDate.day,
+      pickedTime.hour,
+      pickedTime.minute,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
     _fetchhostUsername();
+    _api = GeminiApi(apiKey);
   }
 
   Future<void> _fetchhostUsername() async {
@@ -187,11 +230,12 @@ class _AdminAddTripPageState extends State<AdminAddTripPage> {
   }
 
   int _calculateDaysOfTrip() {
-    if (_startDate != null && _endDate != null) {
-      return _endDate!.difference(_startDate!).inDays;
+    if (_startDateTime != null && _endDateTime != null) {
+      return _endDateTime!.difference(_startDateTime!).inDays;
     }
     return 0; // Default to 0 if dates are not selected
   }
+
 
   Future<void> _pickImages() async {
     final List<XFile> selectedImages = await _picker.pickMultiImage();
@@ -248,76 +292,74 @@ class _AdminAddTripPageState extends State<AdminAddTripPage> {
     return uploadedUrls;
   }
 
+  // 🌍 Fetch Trip Overview
+  Future<String> getTripOverview(String destination) async {
+    final String apiUrl =
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$ajapiKey";
 
-  Future<void> _selectStartDate(BuildContext context) async {
-    DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: _startDate ?? DateTime.now(),
-      firstDate: DateTime.now(),
-      lastDate: DateTime(2100),
+    final response = await http.post(
+      Uri.parse(apiUrl),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({
+        "contents": [
+          {
+            "parts": [
+              {
+                "text": "Provide a 70-word detailed overview about $destination as a travel destination. "
+                    "Mention key attractions, culture, food, and unique experiences."
+              }
+            ]
+          }
+        ]
+      }),
     );
 
-    if (picked != null && picked != _startDate) {
-      setState(() {
-        _startDate = picked;
-        _endDate = null; // Reset end date when start date changes
-      });
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data["candidates"][0]["content"]["parts"][0]["text"] ??
+          "Discover the beauty of $destination!";
+    } else {
+      print("Error fetching trip overview: ${response.body}");
+      return "Unable to fetch trip details.";
     }
   }
 
-  // Function to select the Trip End Date
-  Future<void> _selectEndDate(BuildContext context) async {
-    if (_startDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Please select the Trip Start Date first'))
-      );
-      return;
+  Future<List<String>?> _generateItinerary() async {
+    if (!mounted) return null; // Check if the widget is still mounted
+
+    final destination = _destination;
+    final days = _calculateDaysOfTrip();
+    final from = fromLocation;
+    final to = toLocation;
+
+    if (destination!.isEmpty || days <= 0) {
+      return null;
     }
 
-    DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: _endDate ?? _startDate!.add(Duration(days: 1)), // Default to next day
-      firstDate: _startDate!.add(Duration(days: 1)), // End date must be after start date
-      lastDate: DateTime(2100),
-    );
+    final itiPrompt =
+        "Create a $destination itinerary for $days days based on $from to $to ,Each day in 50 words. Format it as: \n"
+        "\n"
+        "Day 2: [plan]\n"
+        "Day 3: [plan]...\n"
+        "Do not use '*' or bullet points.";
 
-    if (picked != null && picked != _endDate) {
-      setState(() {
-        _endDate = picked;
-      });
+    try {
+      final itinerary = await _api.generateItinerary(itiPrompt);
+
+      // Extract text from API response
+      final itineraryText = itinerary?.candidates[0].content.parts[0].text;
+
+      // Split itinerary into separate days
+      List<String> itineraryDays = itineraryText!.split(RegExp(r'\nDay \d+: '))
+          .where((element) => element.isNotEmpty)
+          .toList();
+
+      return itineraryDays;
+    } catch (e) {
+      print("Error in _generateItinerary: $e");
+      return null;
     }
   }
-
-  String? validateStartDate() {
-    if (_startDate == null) return "";
-    return null;
-  }
-  // Validation for End Date
-  String? validateEndDate() {
-    if (_endDate == null) {
-      return "";
-    } else if (_startDate != null && _endDate!.isBefore(_startDate!)) {
-      return "End Date must be after Start Date";
-    }
-    return null;
-  }
-
-  Future<void> _selectTime(BuildContext context, bool isStartTime) async {
-    final TimeOfDay? picked = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.now(),
-    );
-    if (picked != null) {
-      setState(() {
-        if (isStartTime) {
-          _startTime = picked;
-        } else {
-          _endTime = picked;
-        }
-      });
-    }
-  }
-
 
   Future<void> _saveTrip() async {
     if (_formKey.currentState!.validate()) {
@@ -362,6 +404,11 @@ class _AdminAddTripPageState extends State<AdminAddTripPage> {
       }
 
       int daysOfTrip = _calculateDaysOfTrip();
+      String destination = _destination ?? ""; // Safe fallback for _destination
+      // 📝 Get Trip Overview
+      String tripOverview = await getTripOverview(destination);
+
+      List<String>? itineraryText = await _generateItinerary();
 
       // ✅ Generate a unique trip ID
       String tripId = FirebaseFirestore.instance.collection('trips').doc().id;
@@ -372,22 +419,24 @@ class _AdminAddTripPageState extends State<AdminAddTripPage> {
         "hostUsername": _hostusername,
         "tripTitle": _tripTitle,
         "destination": _destination,
+        "from":fromLocation,
+        "to":toLocation,
         "tripCategory": _selectedCategory,
-        "startDate": _startDate?.toIso8601String(),
-        "startTime": _startTime?.format(context),
-        "endDate": _endDate?.toIso8601String(),
-        "endTime": _endTime?.format(context),
+        "startDateTime": _startDateTime!.toIso8601String(),
+        "endDateTime": _endDateTime!.toIso8601String(),
         "daysOfTrip": daysOfTrip,
-        "description": _description,
+        "description": tripOverview,
+        "itinerary": itineraryText,
         "meetingPoint": _meetingPoint,
         "transportation": selectedTransport,
         "accommodation": _accommodation,
         "maxParticipants": _maxParticipants,
         "tripFee": _tripFee,
         "includedServices": _includedServices,
-        "contactInfo": _contactInfo,
         "whatsappInfo": _wacontactinfo,
         "tripRole": "admin",
+        "popular":false,
+        "tripDone":false,
         "itemsToBring": itemsToBring,
         "guidelines": guidelinesAndRules,
         "cancellationPolicy": cancellationPolicy,
@@ -502,22 +551,6 @@ class _AdminAddTripPageState extends State<AdminAddTripPage> {
                 ],
               ),
               SizedBox(height: 20),
-              _buildTextField(
-                label: "Trip Title",
-                hint: "Enter the trip title",
-                onSaved: (value) => _tripTitle = value,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter Trip Title';
-                  }
-                  final usernameRegExp = RegExp(r'^[a-zA-Z]');
-                  if (!usernameRegExp.hasMatch(value)) {
-                    return 'Invalid Trip Title';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 5),
               Padding(
                 padding: const EdgeInsets.all(0.0),
                 child: Autocomplete<String>(
@@ -617,90 +650,117 @@ class _AdminAddTripPageState extends State<AdminAddTripPage> {
                   },
                 ),
               ),
-              SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                dropdownColor: kBackgroundColor,
-                value: _selectedCategory!.isNotEmpty ? _selectedCategory : null,
-                hint: Text("Select trip Category",style: TextStyle(color: Color(0xFF134277),),),
-                items: tripcat.map((category) {
-                  return DropdownMenuItem<String>(
-                    value: category,
-                    child: Text(category),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedCategory = value ?? '';  // Ensure it's not null
-                  });
-                },
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please select Trip Category';
-                  }
-                  return null;
-                },
-                decoration: InputDecoration(
-                  hintStyle: TextStyle(
-                    color: Color(0xFF134277), // Hint text color
+              SizedBox(height: 10),
+              //From To
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildTextField(
+                      label: "From",
+                      hint: "Enter starting location",
+                      onSaved: (value) => fromLocation = value!,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter Trip location';
+                        }
+                        final usernameRegExp = RegExp(r'^[a-zA-Z]');
+                        if (!usernameRegExp.hasMatch(value)) {
+                          return 'Invalid Trip location';
+                        }
+                        return null;
+                      },
+                    ),
                   ),
-                  border: InputBorder.none,
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF8BA7E8), width: 2),
+                  SizedBox(width: 10), // Space between fields
+                  Expanded(
+                    child: _buildTextField(
+                      label: "To",
+                      hint: "Enter destination",
+                      onSaved: (value) => toLocation = value!,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter Trip destination';
+                        }
+                        final usernameRegExp = RegExp(r'^[a-zA-Z]');
+                        if (!usernameRegExp.hasMatch(value)) {
+                          return 'Invalid Trip destination';
+                        }
+                        return null;
+                      },
+                    ),
                   ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF134277), width: 2),
-                  ),
-                  errorBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.red, width: 1),
-                  ),
-                  focusedErrorBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.red, width: 2),
-                  ),
-                ),
+                ],
               ),
               SizedBox(height: 10),
-              _buildDateField(
-                context,
-                label: "Start Date",
-                date: _startDate,
-                onTap: () => _selectStartDate(context),
-                validator: validateStartDate,
+              //Trip Category
+              Text("Trip Category : ", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+              SizedBox(height: 6),
+              Wrap(
+                spacing: 8, // Space between chips
+                children: tripcat.map((category) {
+                  return ChoiceChip(
+                    label: Text(category),
+                    selected: _selectedCategory == category,
+                    onSelected: (selected) {
+                      setState(() {
+                        _selectedCategory = selected ? category : ''; // Toggle selection
+                      });
+                    },
+                    showCheckmark: false,
+                    selectedColor: Color(0xFF134277), // Color when selected
+                    backgroundColor: Colors.grey[100], // Default chip color
+                    labelStyle: TextStyle(
+                      color: _selectedCategory == category ? Colors.white : Colors.black87,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      side: BorderSide(width: 1.5, color: Colors.grey),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  );
+                }).toList(),
               ),
-              _buildTimeField(
-                context,
-                label: "Start Time",
-                time: _startTime,
-                onTap: () => _selectTime(context, true),
+
+              //Date Time
+              SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildDateTimeSelector(
+                      label: "Start Date & Time",
+                      dateTime: _startDateTime,
+                      onTap: () async {
+                        DateTime? selected = await _pickDateTime(context);
+                        if (selected != null) {
+                          setState(() {
+                            _startDateTime = selected;
+                            _endDateTime = null; // Reset end date when start changes
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: _buildDateTimeSelector(
+                      label: "End Date & Time",
+                      dateTime: _endDateTime,
+                      onTap: () async {
+                        DateTime? selected = await _pickDateTime(
+                          context,
+                          firstDate: _startDateTime ?? DateTime.now(),
+                        );
+                        if (selected != null) {
+                          setState(() {
+                            _endDateTime = selected;
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                ],
               ),
-              _buildDateField(
-                context,
-                label: "Trip End Date",
-                date: _endDate,
-                onTap: () => _selectEndDate(context),
-                validator: validateEndDate,
-              ),
-              _buildTimeField(
-                context,
-                label: "End Time",
-                time: _endTime,
-                onTap: () => _selectTime(context, false),
-              ),
-              _buildTextField(
-                label: "Description",
-                hint: "Enter trip description",
-                onSaved: (value) => _description = value,
-                maxLines: 3,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter Description';
-                  }
-                  return null;
-                },
-              ),
+              SizedBox(height: 10),
+
               _buildTextField(
                 label: "Meeting Point",
                 hint: "Enter the meeting point",
@@ -713,50 +773,44 @@ class _AdminAddTripPageState extends State<AdminAddTripPage> {
                 },
               ),
               SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                dropdownColor: kBackgroundColor,
-                value: transport.contains(selectedTransport) ? selectedTransport : null,
-                hint: Text("Select Transportation",style: TextStyle(color: Color(0xFF134277),),),
-                items: transport.map((category) {
-                  return DropdownMenuItem<String>(
-                    value: category,
-                    child: Text(category),
+              Text("Transportation : ", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+              SizedBox(height: 6),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: transport.map((category) {
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        selectedTransport = category;
+                      });
+                    },
+                    child: Container(
+                      width: MediaQuery.of(context).size.width * 0.215, // Responsive width
+                      padding: EdgeInsets.symmetric(vertical: 14),
+                      decoration: BoxDecoration(
+                        gradient: selectedTransport == category
+                            ? LinearGradient(colors: [Color(0xFF134277), Color(0xFF134277)])
+                            : LinearGradient(colors: [Colors.grey[200]!, Colors.grey[200]!]),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: selectedTransport == category ? Color(0xFF134277) : Colors.grey[400]!,
+                          width: 2,
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          category,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w500,
+                            color: selectedTransport == category ? Colors.white : Colors.black,
+                          ),
+                        ),
+                      ),
+                    ),
                   );
                 }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    selectedTransport = value ?? '';  // Ensure it's not null
-                  });
-                },
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please select Transportation';
-                  }
-                  return null;
-                },
-                decoration: InputDecoration(
-                  hintStyle: TextStyle(
-                    color: Color(0xFF134277), // Hint text color
-                  ),
-                  border: InputBorder.none,
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF8BA7E8), width: 2),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF134277), width: 2),
-                  ),
-                  errorBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.red, width: 1),
-                  ),
-                  focusedErrorBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.red, width: 2),
-                  ),
-                ),
               ),
+
               SizedBox(height: 8,),
               _buildTextField(
                 label: "Accommodation Details",
@@ -803,33 +857,37 @@ class _AdminAddTripPageState extends State<AdminAddTripPage> {
                   return null;
                 },
               ),
-              _buildTextField(
-                label: "Included Services",
-                hint: "Enter included services",
-                onSaved: (value) => _includedServices = value,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter Included Services';
-                  }
-                  return null;
-                },
+              SizedBox(height: 8),
+              Text("Included Services:",
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+              SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                children: allServices.map((service) {
+                  return ChoiceChip(
+                    showCheckmark: false,
+                    label: Text(service),
+                    selected: _includedServices.contains(service),
+                    onSelected: (selected) {
+                      setState(() {
+                        selected
+                            ? _includedServices.add(service)
+                            : _includedServices.remove(service);
+                      });
+                    },
+                    selectedColor: Color(0xFF134277), // Selected color
+                    backgroundColor: Colors.grey[200], // Default chip color
+                    labelStyle: TextStyle(
+                      color: _includedServices.contains(service) ? Colors.white : Colors.black87,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      side: BorderSide(width: 1.5, color: Colors.grey),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  );
+                }).toList(),
               ),
-              _buildTextField(
-                label: "Contact Information",
-                hint: "Enter contact details",
-                keyboardType: TextInputType.number,
-                onSaved: (value) => _contactInfo = value,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter Contact Information';
-                  }
-                  final phoneRegExp = RegExp(r'^[0-9]{10}$');
-                  if (!phoneRegExp.hasMatch(value)) {
-                    return 'Invalid contact details (must be 10 digits)';
-                  }
-                  return null;
-                },
-              ),
+              SizedBox(height: 6),
               _buildTextField(
                 label: "WhatsApp contact",
                 hint: "Enter WhatsApp contact details",
@@ -875,6 +933,7 @@ class _AdminAddTripPageState extends State<AdminAddTripPage> {
       ),
     );
   }
+
   Widget _buildTextField({
     required String label,
     required String hint,
@@ -927,112 +986,24 @@ class _AdminAddTripPageState extends State<AdminAddTripPage> {
     );
   }
 
-  Widget _buildDateField(BuildContext context, {
-    required String label,
-    required DateTime? date,
-    required VoidCallback onTap,
-    required String? Function()? validator,
-  }) {
-    String? errorText = validator?.call(); // Call validator to check errors
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: InkWell(
-        onTap: onTap,
-        child: InputDecorator(
-          decoration: InputDecoration(
-            labelText: label,
-            border: InputBorder.none,
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF8BA7E8), width: 2),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF134277), width: 2),
-            ),
-            errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.red, width: 1),
-            ),
-            focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.red, width: 2),
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                date == null ? "Select Date" : DateFormat('yyyy-MM-dd').format(date),
-                style: TextStyle(
-                  fontSize: 16,
-                  color: date == null ? Colors.grey : Colors.black,
-                ),
-              ),
-              if (errorText != null) // Display validation message if there's an error
-                Padding(
-                  padding: const EdgeInsets.only(top: 5),
-                  child: Text(
-                    errorText,
-                    style: TextStyle(color: Colors.red, fontSize: 12),
-                  ),
-                ),
-            ],
+  Widget _buildDateTimeSelector({required String label, required DateTime? dateTime, required VoidCallback onTap}) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        width: MediaQuery.of(context).size.width,
+        padding: EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          border: Border.all(color: Color(0xFF8BA7E8), width: 2),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Center(
+          child: Text(
+            dateTime == null ? label : DateFormat('dd/MM/yyyy, hh:mm a').format(dateTime),
+            style: TextStyle(fontWeight: FontWeight.w400, color: Color(0xFF134277),),
           ),
         ),
       ),
     );
   }
-
-
-  // Time Field Widget
-  Widget _buildTimeField(BuildContext context, {
-    required String label,
-    required TimeOfDay? time,
-    required VoidCallback onTap,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: InkWell(
-        onTap: onTap,
-        child: InputDecorator(
-          decoration: InputDecoration(
-            border: InputBorder.none,
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF8BA7E8), width: 2),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF134277), width: 2),
-            ),
-            errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.red, width: 1),
-            ),
-            focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.red, width: 2),
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(0, 3, 0, 3),
-                child: Text(
-                  time != null ? time.format(context) : "Select $label",
-                  style: TextStyle(
-                    color: time != null ? Colors.black : Color(0xFF134277),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
 }
+

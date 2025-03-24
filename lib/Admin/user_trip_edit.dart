@@ -1,5 +1,10 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:crypto/crypto.dart';
+import 'package:http/http.dart' as http;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
 
@@ -515,16 +520,21 @@ class _EditTripScreenState extends State<UserTripEditScreen> {
     "Tawang, Arunachal Pradesh",
   ];
 
+  List<String> imageUrls = []; // List to store image URLs
+  File? _selectedImage;
+  final picker = ImagePicker();
+
   @override
   void initState() {
     super.initState();
     // Initialize controllers with trip data
-    _tripTitleController = TextEditingController(text: widget.trip.name);
+    imageUrls = List<String>.from(widget.trip.image ?? []);
+    //_tripTitleController = TextEditingController(text: widget.trip.name);
     _descriptionController = TextEditingController(text: widget.trip.des);
     _meetingPointController = TextEditingController(text: widget.trip.meetingPoint);
     _accommodationController = TextEditingController(text: widget.trip.accommodation);
-    _includedServicesController = TextEditingController(text: widget.trip.includedServices);
-    _contactInfoController = TextEditingController(text: widget.trip.contactInfo);
+    //_includedServicesController = TextEditingController(text: widget.trip.includedServices);
+    //_contactInfoController = TextEditingController(text: widget.trip.contactInfo);
     _whatsappInfoController = TextEditingController(text: widget.trip.whatsappInfo);
     _tripFeeController = TextEditingController(text: widget.trip.price.toString());
     _maxParticipantsController = TextEditingController(text: widget.trip.maxpart.toString());
@@ -536,21 +546,9 @@ class _EditTripScreenState extends State<UserTripEditScreen> {
     selectedTransport = widget.trip.transportation;
     _startDate = widget.trip.startDate;
     _endDate = widget.trip.endDate;
-    _startTime = widget.trip.startTime;
-    _endTime = widget.trip.endTime;
+    //_startTime = widget.trip.startTime;
+    //_endTime = widget.trip.endTime;
   }
-
-  // DateTime? _parseDateString(String? dateString) {
-  //   if (dateString == null || dateString.isEmpty) return null;
-  //
-  //   try {
-  //     return DateTime.parse(dateString); // Convert string to DateTime
-  //   } catch (e) {
-  //     print("Error parsing date: $e");
-  //     return null;
-  //   }
-  // }
-
 
 
   @override
@@ -579,12 +577,17 @@ class _EditTripScreenState extends State<UserTripEditScreen> {
 
       try {
         // Reference to the trip document in Firestore
-        DocumentReference tripDocRef = _firestore.collection('trips').doc(
-            widget.trip.id);
+        DocumentReference tripDocRef =
+        _firestore.collection('trips').doc(widget.trip.id);
 
         int? dayOfTrip;
         if (_startDate != null && _endDate != null) {
           dayOfTrip = _endDate!.difference(_startDate!).inDays;
+        }
+
+        // Upload new image (if selected) and update Firestore
+        if (_selectedImage != null) {
+          await _updateImage();
         }
 
         // Data to update
@@ -597,18 +600,16 @@ class _EditTripScreenState extends State<UserTripEditScreen> {
           'contactInfo': _contactInfoController.text.trim(),
           'whatsappInfo': _whatsappInfoController.text.trim(),
           'tripFee': double.tryParse(_tripFeeController.text.trim()) ?? 0.0,
-          'maxParticipants': int.tryParse(
-              _maxParticipantsController.text.trim()) ?? 0,
-          'destination': _destinationController.text,
-          // Fixed destination field
+          'maxParticipants': int.tryParse(_maxParticipantsController.text.trim()) ?? 0,
+          'destination': _destinationController.text, // Fixed destination field
           'category': _selectedCategory,
           'transportation': selectedTransport,
-          'startDate': _startDate?.toIso8601String(),
-          // Convert DateTime to String
+          'startDate': _startDate?.toIso8601String(), // Convert DateTime to String
           'endDate': _endDate?.toIso8601String(),
           'startTime': _startTime,
           'endTime': _endTime,
-          'daysOfTrip': dayOfTrip
+          'daysOfTrip': dayOfTrip,
+          'photos': imageUrls, // Ensure updated image array is used
         };
 
         // Update the main trip document in the "trips" collection
@@ -622,12 +623,15 @@ class _EditTripScreenState extends State<UserTripEditScreen> {
               .collection('trip')
               .doc(widget.trip.id);
 
-          await userTripRef.update(updatedData);
+          await userTripRef.update({
+            ...updatedData,
+            'photos': imageUrls, // Ensure photos update in user subcollection
+          });
         }
 
         // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Trip Updated Successfully!")),
+          const SnackBar(content: Text("Trip Updated Successfully!")),
         );
 
         // Close the edit page and send "true" to refresh trips in the home page
@@ -635,14 +639,16 @@ class _EditTripScreenState extends State<UserTripEditScreen> {
       } catch (e) {
         print("Error updating trip: $e");
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Failed to update trip. Please try again.")),
+          const SnackBar(content: Text("Failed to update trip. Please try again.")),
         );
       }
+
       setState(() {
         _isLoading = false; // Stop loading after process completes
       });
     }
   }
+
 
   Future<void> _pickStartDate() async {
     DateTime today = DateTime.now();
@@ -734,10 +740,156 @@ class _EditTripScreenState extends State<UserTripEditScreen> {
   }
 
 
+  // Pick an image from gallery
+  Future<void> _pickImage() async {
+    final XFile? image = await ImagePicker().pickImage(source: ImageSource.gallery);
+    if (image == null) return; // No image selected
+
+    File imageFile = File(image.path);
+
+    // Upload to Cloudinary and get the URL
+    String? imageUrl = await _uploadToCloudinary(imageFile);
+
+    if (imageUrl != null) {
+      setState(() {
+        imageUrls.add(imageUrl); // Update UI immediately
+      });
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Image Upload Failed")),
+      );
+    }
+  }
+
+
+  // Extract public ID from Cloudinary URL
+  String? _extractPublicId(String? url) {
+    if (url == null) return null;
+    Uri uri = Uri.parse(url);
+    List<String> segments = uri.pathSegments;
+
+    if (segments.length > 1) {
+      String filename = segments.last;
+      return filename.split('.').first; // Remove file extension
+    }
+    return null;
+  }
+
+  // Delete image from Cloudinary
+  Future<void> _deleteFromCloudinary(String? imageUrl) async {
+    if (imageUrl == null) return;
+
+    String? publicId = _extractPublicId(imageUrl);
+    if (publicId == null) {
+      print("Failed to extract public ID.");
+      return;
+    }
+
+    final String cloudName = 'dz0shhr6k'; // Your Cloudinary cloud name
+    final String apiKey = '763225618255152'; // Your Cloudinary API Key
+    final String apiSecret = 'DFCYPhLVFLb8pdNwwopUAPM_i8w';
+
+    int timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    String stringToSign = "public_id=$publicId&timestamp=$timestamp$apiSecret";
+    String signature = sha1.convert(utf8.encode(stringToSign)).toString();
+
+    final url = Uri.parse("https://api.cloudinary.com/v1_1/$cloudName/image/destroy");
+
+    final response = await http.post(
+      url,
+      body: {
+        "public_id": publicId,
+        "api_key": apiKey,
+        "timestamp": timestamp.toString(),
+        "signature": signature,
+      },
+    );
+
+    if (response.statusCode == 200) {
+      print("✅ Image deleted successfully from Cloudinary.");
+    } else {
+      print("❌ Failed to delete image: ${response.body}");
+    }
+  }
+
+
+  // Upload new image to Cloudinary
+  Future<String?> _uploadToCloudinary(File imageFile) async {
+    final cloudinaryUrl =
+        "https://api.cloudinary.com/v1_1/dz0shhr6k/image/upload";
+    final uploadPreset = "gobuddy-images";
+
+    var request = http.MultipartRequest("POST", Uri.parse(cloudinaryUrl));
+    request.fields['upload_preset'] = uploadPreset;
+    request.files.add(await http.MultipartFile.fromPath("file", imageFile.path));
+
+    var response = await request.send();
+
+    if (response.statusCode == 200) {
+      var responseData = jsonDecode(await response.stream.bytesToString());
+      return responseData["secure_url"];
+    } else {
+      return null;
+    }
+  }
+
+  // Add new image to Firestore
+  Future<void> _updateImage() async {
+    if (_selectedImage == null) return;
+
+    // Upload the new image
+    String? uploadedImageUrl = await _uploadToCloudinary(_selectedImage!);
+
+    if (uploadedImageUrl != null) {
+      setState(() {
+        imageUrls.add(uploadedImageUrl); // Add to local list
+      });
+
+      await FirebaseFirestore.instance
+          .collection('trips')
+          .doc(widget.trip.id)
+          .update({'photos': imageUrls}); // Update Firestore array
+
+      setState(() {
+        _selectedImage = null;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Image Added Successfully")),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Image Upload Failed")),
+      );
+    }
+  }
+
+
+  // Delete a specific image
+  Future<void> _deleteImage(int index) async {
+    String imageUrlToDelete = imageUrls[index];
+
+    // Delete image from Cloudinary
+    await _deleteFromCloudinary(imageUrlToDelete);
+
+    // Remove from Firestore
+    imageUrls.removeAt(index);
+    await FirebaseFirestore.instance
+        .collection('trips')
+        .doc(widget.trip.id)
+        .update({'photos': imageUrls});
+
+    setState(() {});
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Image Deleted Successfully")),
+    );
+  }
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-
       backgroundColor: kBackgroundColor,
       appBar: AppBar(title: Text('Edit Trip'),
         backgroundColor: Color(0xFF134277),
@@ -749,6 +901,46 @@ class _EditTripScreenState extends State<UserTripEditScreen> {
           key: _formKey,
           child: ListView(
             children: [
+              Row(
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: _pickImage,
+                    icon: Icon(Icons.add_a_photo, color: Colors.black),
+                    label: Text("Pick Image"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Color(0xFF8BA7E8),
+                      foregroundColor: Colors.black,
+                    ),
+                  ),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: imageUrls.isNotEmpty
+                        ? Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: imageUrls.asMap().entries.map((entry) {
+                        int index = entry.key;
+                        String photoUrl = entry.value;
+
+                        return Stack(
+                          children: [
+                            Image.network(photoUrl, width: 100, height: 100, fit: BoxFit.cover),
+                            Positioned(
+                              right: 0,
+                              top: 0,
+                              child: GestureDetector(
+                                onTap: () => _deleteImage(index),
+                                child: Icon(Icons.cancel, color: Colors.red),
+                              ),
+                            )
+                          ],
+                        );
+                      }).toList(),
+                    )
+                        : Text("No photos added yet"),
+                  ),
+                ],
+              ),
               _buildTextField(
                 controller: _tripTitleController,
                 labelText: "Trip Title",
@@ -1063,7 +1255,7 @@ class _EditTripScreenState extends State<UserTripEditScreen> {
                   if (value == null || value.isEmpty) {
                     return 'Please enter Trip Fee (per person)';
                   }
-                  if (!RegExp(r'^[0-9]+$').hasMatch(value)) {
+                  if (!RegExp(r'^[0-9.]+$').hasMatch(value)) {
                     return 'Invalid Trip Fee(must be digits)';
                   }
                   return null;

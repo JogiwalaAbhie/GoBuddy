@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:gobuddy/Admin/admin_navigation.dart';
@@ -11,6 +12,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lottie/lottie.dart';
 
+import '../models/api_service.dart';
+import '../models/itinerary_model.dart';
+import '../models/notification_model.dart';
+
 class AddTripPage extends StatefulWidget {
   @override
   _AddTripPageState createState() => _AddTripPageState();
@@ -20,157 +25,148 @@ class _AddTripPageState extends State<AddTripPage> {
   final _formKey = GlobalKey<FormState>();
   String? userId = FirebaseAuth.instance.currentUser?.uid;
 
-  String? _tripTitle;
   String? _hostusername;
   String? _destination;
   DateTime? _startDate;
-  TimeOfDay? _startTime;
   DateTime? _endDate;
-  TimeOfDay? _endTime;
-  String? _description;
-  String? _meetingPoint;
-  String? _accommodation;
-  int? _maxParticipants;
-  double? _tripFee;
-  String? _includedServices;
-  String? _contactInfo;
   String? _wacontactinfo;
-  String itemsToBring = "Valid ID proof\nComfortable clothing\nWater bottle\nPersonal medications";
-  String guidelinesAndRules = "No littering in the area\nRespect local culture\nFollow the guide’s instructions\nNo smoking in restricted areas\nPets are not allowed";
-  String cancellationPolicy = "Full refund if canceled 48 hours before\n50% refund if canceled 24 hours before\nNo refund for cancellations within 24 hours";
+
+  // Itinerary? _itinerary;
+  final String apiKey = 'AIzaSyC_Fdxg404-NJbwkj5BPECWmuMmPDLKLZQ';
+
+  static const String ajapiKey = "AIzaSyC7yH2LhTEKXkBGeEuCIX-p5LOdASycP5Q";
+
+  late GeminiApi _api;
 
   bool _isLoading = false;
 
   String? _selectedCategory = "";
   final List<String> tripcat = [
-   "Adventure Trips",
+   "Adventure",
     "Beach Vacations",
-    "Cultural & Historical Tours",
+    "Historical Tours",
     "Road Trips",
-    "Volunteer & Humanitarian Trips",
-    "Wellness Trips"
+    "Volunteer & Humanitarian",
+    "Wellness"
   ];
 
-  String? selectedTransport;
-  List<String> transport = [
-    'Car',
-    'Bus',
-    'Train',
-    'Flight',
-    'Bike',
-    'Boat'];
 
   final ImagePicker _picker = ImagePicker();
   List<File> _selectedImages = [];
 
-  final List<String> _destinations = [
-    // 🌊 Beach Destinations
-    "Goa, India",
-    "Pondicherry, India",
-    "Marina Beach, Tamil Nadu",
-    "Dhanushkodi, Tamil Nadu",
-    "Kanyakumari, Tamil Nadu",
-    "Gokarna, Karnataka",
-    "Kovalam, Kerala",
-    "Varkala, Kerala",
-    "Havelock Island, Andaman",
-    "Neil Island, Andaman",
+  // final List<String> _destinations = [
+  //   // 🌊 Beach Destinations
+  //   "Goa, India",
+  //   "Pondicherry, India",
+  //   "Marina Beach, Tamil Nadu",
+  //   "Dhanushkodi, Tamil Nadu",
+  //   "Kanyakumari, Tamil Nadu",
+  //   "Gokarna, Karnataka",
+  //   "Kovalam, Kerala",
+  //   "Varkala, Kerala",
+  //   "Havelock Island, Andaman",
+  //   "Neil Island, Andaman",
+  //
+  //   // 🏔️ Hill Stations
+  //   "Manali, Himachal Pradesh",
+  //   "Shimla, Himachal Pradesh",
+  //   "Kasol, Himachal Pradesh",
+  //   "Dharamshala, Himachal Pradesh",
+  //   "Dalhousie, Himachal Pradesh",
+  //   "Munnar, Kerala",
+  //   "Ooty, Tamil Nadu",
+  //   "Kodaikanal, Tamil Nadu",
+  //   "Coorg, Karnataka",
+  //   "Lonavala, Maharashtra",
+  //   "Mahabaleshwar, Maharashtra",
+  //   "Saputara, Gujarat",
+  //   "Mount Abu, Rajasthan",
+  //   "Chopta, Uttarakhand",
+  //   "Nainital, Uttarakhand",
+  //   "Mussoorie, Uttarakhand",
+  //   "Shillong, Meghalaya",
+  //   "Gangtok, Sikkim",
+  //   "Tawang, Arunachal Pradesh",
+  //
+  //   // 🏜️ Desert & Cultural Trips
+  //   "Jaisalmer, Rajasthan",
+  //   "Jaipur, Rajasthan",
+  //   "Udaipur, Rajasthan",
+  //   "Bikaner, Rajasthan",
+  //   "Rann of Kutch, Gujarat",
+  //   "Pushkar, Rajasthan",
+  //   "Jodhpur, Rajasthan",
+  //
+  //   // 🏞️ Nature & Wildlife
+  //   "Jim Corbett National Park, Uttarakhand",
+  //   "Kaziranga National Park, Assam",
+  //   "Sundarbans, West Bengal",
+  //   "Gir National Park, Gujarat",
+  //   "Bandipur National Park, Karnataka",
+  //   "Ranthambore National Park, Rajasthan",
+  //   "Periyar Wildlife Sanctuary, Kerala",
+  //
+  //   // 🚣 Adventure & Trekking
+  //   "Rishikesh, Uttarakhand",
+  //   "Triund Trek, Himachal Pradesh",
+  //   "Leh, Ladakh",
+  //   "Spiti Valley, Himachal Pradesh",
+  //   "Chandrashila Trek, Uttarakhand",
+  //   "Roopkund Trek, Uttarakhand",
+  //   "Zanskar Valley, Ladakh",
+  //   "Sandakphu, West Bengal",
+  //   "Valley of Flowers, Uttarakhand",
+  //
+  //   // 🏛️ Heritage & Spiritual Destinations
+  //   "Varanasi, Uttar Pradesh",
+  //   "Rameswaram, Tamil Nadu",
+  //   "Bodh Gaya, Bihar",
+  //   "Ajanta & Ellora Caves, Maharashtra",
+  //   "Konark Sun Temple, Odisha",
+  //   "Amritsar, Punjab",
+  //   "Golden Temple, Punjab",
+  //   "Dwarka, Gujarat",
+  //   "Somnath, Gujarat",
+  //   "Madurai, Tamil Nadu",
+  //   "Tirupati, Andhra Pradesh",
+  //   "Shirdi, Maharashtra",
+  //   "Vaishno Devi, Jammu & Kashmir",
+  //
+  //   // 🌆 Metro City Trips
+  //   "Mumbai, Maharashtra",
+  //   "Bangalore, Karnataka",
+  //   "Delhi, India",
+  //   "Chennai, Tamil Nadu",
+  //   "Hyderabad, Telangana",
+  //   "Kolkata, West Bengal",
+  //   "Ahmedabad, Gujarat",
+  //   "Pune, Maharashtra",
+  //
+  //   // 🎭 Unique & Hidden Gems
+  //   "Cherrapunji, Meghalaya",
+  //   "Ziro Valley, Arunachal Pradesh",
+  //   "Majuli Island, Assam",
+  //   "Mawlynnong, Meghalaya",
+  //   "Loktak Lake, Manipur",
+  //   "Lepchajagat, West Bengal",
+  //   "Hampi, Karnataka",
+  //   "Gandikota, Andhra Pradesh",
+  //   "Bhedaghat, Madhya Pradesh",
+  //   "Pachmarhi, Madhya Pradesh",
+  //   "Tawang, Arunachal Pradesh",
+  // ];
 
-    // 🏔️ Hill Stations
-    "Manali, Himachal Pradesh",
-    "Shimla, Himachal Pradesh",
-    "Kasol, Himachal Pradesh",
-    "Dharamshala, Himachal Pradesh",
-    "Dalhousie, Himachal Pradesh",
-    "Munnar, Kerala",
-    "Ooty, Tamil Nadu",
-    "Kodaikanal, Tamil Nadu",
-    "Coorg, Karnataka",
-    "Lonavala, Maharashtra",
-    "Mahabaleshwar, Maharashtra",
-    "Saputara, Gujarat",
-    "Mount Abu, Rajasthan",
-    "Chopta, Uttarakhand",
-    "Nainital, Uttarakhand",
-    "Mussoorie, Uttarakhand",
-    "Shillong, Meghalaya",
-    "Gangtok, Sikkim",
-    "Tawang, Arunachal Pradesh",
-
-    // 🏜️ Desert & Cultural Trips
-    "Jaisalmer, Rajasthan",
-    "Jaipur, Rajasthan",
-    "Udaipur, Rajasthan",
-    "Bikaner, Rajasthan",
-    "Rann of Kutch, Gujarat",
-    "Pushkar, Rajasthan",
-    "Jodhpur, Rajasthan",
-
-    // 🏞️ Nature & Wildlife
-    "Jim Corbett National Park, Uttarakhand",
-    "Kaziranga National Park, Assam",
-    "Sundarbans, West Bengal",
-    "Gir National Park, Gujarat",
-    "Bandipur National Park, Karnataka",
-    "Ranthambore National Park, Rajasthan",
-    "Periyar Wildlife Sanctuary, Kerala",
-
-    // 🚣 Adventure & Trekking
-    "Rishikesh, Uttarakhand",
-    "Triund Trek, Himachal Pradesh",
-    "Leh, Ladakh",
-    "Spiti Valley, Himachal Pradesh",
-    "Chandrashila Trek, Uttarakhand",
-    "Roopkund Trek, Uttarakhand",
-    "Zanskar Valley, Ladakh",
-    "Sandakphu, West Bengal",
-    "Valley of Flowers, Uttarakhand",
-
-    // 🏛️ Heritage & Spiritual Destinations
-    "Varanasi, Uttar Pradesh",
-    "Rameswaram, Tamil Nadu",
-    "Bodh Gaya, Bihar",
-    "Ajanta & Ellora Caves, Maharashtra",
-    "Konark Sun Temple, Odisha",
-    "Amritsar, Punjab",
-    "Golden Temple, Punjab",
-    "Dwarka, Gujarat",
-    "Somnath, Gujarat",
-    "Madurai, Tamil Nadu",
-    "Tirupati, Andhra Pradesh",
-    "Shirdi, Maharashtra",
-    "Vaishno Devi, Jammu & Kashmir",
-
-    // 🌆 Metro City Trips
-    "Mumbai, Maharashtra",
-    "Bangalore, Karnataka",
-    "Delhi, India",
-    "Chennai, Tamil Nadu",
-    "Hyderabad, Telangana",
-    "Kolkata, West Bengal",
-    "Ahmedabad, Gujarat",
-    "Pune, Maharashtra",
-
-    // 🎭 Unique & Hidden Gems
-    "Cherrapunji, Meghalaya",
-    "Ziro Valley, Arunachal Pradesh",
-    "Majuli Island, Assam",
-    "Mawlynnong, Meghalaya",
-    "Loktak Lake, Manipur",
-    "Lepchajagat, West Bengal",
-    "Hampi, Karnataka",
-    "Gandikota, Andhra Pradesh",
-    "Bhedaghat, Madhya Pradesh",
-    "Pachmarhi, Madhya Pradesh",
-    "Tawang, Arunachal Pradesh",
-  ];
+  final List<String> _costLevels = ["Easy", "Medium", "Premium"];
+  String? _selectedCostLevel;
 
 
   @override
   void initState() {
     super.initState();
+    _api = GeminiApi(apiKey);
     _fetchUsername();
   }
+
 
   int _calculateDaysOfTrip() {
     if (_startDate != null && _endDate != null) {
@@ -305,138 +301,264 @@ class _AddTripPageState extends State<AddTripPage> {
     return null;
   }
 
-  Future<void> _selectTime(BuildContext context, bool isStartTime) async {
-    final TimeOfDay? picked = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.now(),
+  // 🌍 Fetch Trip Overview
+  Future<String> getTripOverview(String destination) async {
+    final String apiUrl =
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$ajapiKey";
+
+    final response = await http.post(
+      Uri.parse(apiUrl),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({
+        "contents": [
+          {
+            "parts": [
+              {
+                "text": "Provide a 100-word detailed overview about $destination as a travel destination. "
+                    "Mention key attractions, culture, food, and unique experiences."
+              }
+            ]
+          }
+        ]
+      }),
     );
-    if (picked != null) {
-      setState(() {
-        if (isStartTime) {
-          _startTime = picked;
-        } else {
-          _endTime = picked;
-        }
-      });
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data["candidates"][0]["content"]["parts"][0]["text"] ??
+          "Discover the beauty of $destination!";
+    } else {
+      print("Error fetching trip overview: ${response.body}");
+      return "Unable to fetch trip details.";
     }
   }
+
+  // 💰 Fetch Estimated Trip Cost
+  Future<int> getApproxCost(String destination, int days, String costLevel) async {
+    final String apiUrl =
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$ajapiKey";
+
+    final response = await http.post(
+      Uri.parse(apiUrl),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({
+        "contents": [
+          {
+            "parts": [
+              {
+                "text": "Estimate the approximate cost in Indian Rupees for a trip to $destination for $days days at a $costLevel budget level. "
+                    "Provide only the numeric value (without symbols or text)."
+              }
+            ]
+          }
+        ]
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      String costString = data["candidates"][0]["content"]["parts"][0]["text"].toString();
+      String numericCost = costString.replaceAll(RegExp(r'[^0-9]'), ''); // Extract only numbers
+
+      return int.tryParse(numericCost) ?? 1000; // Default fallback
+    } else {
+      print("Error fetching cost: ${response.body}");
+      return 1000; // Default fallback
+    }
+  }
+
+
+  Future<List<String>?> _generateItinerary() async {
+    if (!mounted) return null; // Check if the widget is still mounted
+
+    final destination = _destination;
+    final days = _endDate!.difference(_startDate!).inDays;
+
+    if (destination!.isEmpty || days <= 0) {
+      return null;
+    }
+
+    final itiPrompt =
+        "Create a $destination itinerary for $days days in 100 words. Format it as: \n"
+        "\n"
+        "Day 2: [plan]\n"
+        "Day 3: [plan]...\n"
+        "Do not use '*' or bullet points.";
+
+    try {
+      final itinerary = await _api.generateItinerary(itiPrompt);
+
+      // Extract text from API response
+      final itineraryText = itinerary?.candidates[0].content.parts[0].text;
+
+      // Split itinerary into separate days
+      List<String> itineraryDays = itineraryText!.split(RegExp(r'\nDay \d+: '))
+          .where((element) => element.isNotEmpty)
+          .toList();
+
+      return itineraryDays;
+    } catch (e) {
+      print("Error in _generateItinerary: $e");
+      return null;
+    }
+  }
+
 
 
   Future<void> _saveTrip() async {
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
 
-      if (userId == null) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text("You need to be logged in to submit a Report."),
-          backgroundColor: Colors.red,
-        ));
+      // Validate required fields
+      if (_selectedImages.length < 2 ||
+          _startDate == null || _endDate == null ||
+          _selectedCategory == null ||
+          _selectedCostLevel == null) {  // Added _destination null check
+
+        String errorMessage =
+        _selectedImages.length < 2 ? "You must upload at least 2 images." :
+        _startDate == null || _endDate == null ? "Please select both start and end dates." :
+        _selectedCategory == null ? "Please select a trip category." :
+        "Please select a trip cost level.";
+           // Added destination validation
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
+        );
         return;
       }
 
+      // Start loading
       setState(() {
-        _isLoading = true; // Start loading
+        _isLoading = true;
       });
 
-      if (_selectedImages.length < 2) {
-        setState(() {
-          _isLoading = false; // Stop loading on failure
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text("You must upload at least 2 images."),
-          backgroundColor: Colors.red,
-        ));
-        return;
-      }
-
-      List<String> uploadedImageUrls = await _uploadAllImages();
-
-      if (uploadedImageUrls.isEmpty) {
-        setState(() {
-          _isLoading = false; // Stop loading on failure
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text("Failed to upload images. Please try again."),
-          backgroundColor: Colors.red,
-        ));
-        return;
-      }
-      int daysOfTrip = _calculateDaysOfTrip();
-
-      // ✅ Generate a unique trip ID
-      String tripId = FirebaseFirestore.instance.collection('trips').doc().id;
-
-      final tripData = {
-        "tripId": tripId, // ✅ Store the trip ID explicitly
-        "hostId": userId,
-        "hostUsername": _hostusername,
-        "tripTitle": _tripTitle,
-        "destination": _destination,
-        "tripCategory": _selectedCategory,
-        "startDate": _startDate?.toIso8601String(),
-        "startTime": _startTime?.format(context),
-        "endDate": _endDate?.toIso8601String(),
-        "endTime": _endTime?.format(context),
-        "daysOfTrip": daysOfTrip,
-        "description": _description,
-        "meetingPoint": _meetingPoint,
-        "transportation": selectedTransport,
-        "accommodation": _accommodation,
-        "maxParticipants": _maxParticipants,
-        "tripFee": _tripFee,
-        "includedServices": _includedServices,
-        "contactInfo": _contactInfo,
-        "whatsappInfo": _wacontactinfo,
-        "tripRole":"user",
-        "itemsToBring": itemsToBring,
-        "guidelines": guidelinesAndRules,
-        "cancellationPolicy": cancellationPolicy,
-        "photos": uploadedImageUrls, // Save uploaded images in Firestore
-        "createdAt": DateTime.now().toIso8601String(),
-      };
-
-      // Get Firestore references
-      final tripsCollection = FirebaseFirestore.instance.collection('trips').doc(tripId);
-      final userTripRef = FirebaseFirestore.instance.collection('users').doc(userId).collection('trip').doc(tripId);
-
       try {
+        int daysOfTrip = _calculateDaysOfTrip();
+        String destination = _destination ?? ""; // Safe fallback for _destination
+        // 📝 Get Trip Overview
+        String tripOverview = await getTripOverview(destination);
+
+        // 💰 Get Estimated Cost
+        int approxCost = await getApproxCost(destination, daysOfTrip, _selectedCostLevel!);
+        List<String>? itineraryText = await _generateItinerary();
+
+        // Upload images
+        List<String> uploadedImageUrls = await _uploadAllImages();
+        if (uploadedImageUrls.isEmpty) {
+          throw Exception("Failed to upload images. Please try again.");
+        }
+
+        // Generate a unique trip ID
+        String tripId = FirebaseFirestore.instance
+            .collection('trips')
+            .doc()
+            .id;
+
+        final tripData = {
+          "tripId": tripId,
+          "hostId": userId,
+          "hostUsername": _hostusername,
+          "destination": destination,
+          "tripCategory": _selectedCategory,
+          "startDate": _startDate?.toIso8601String(),
+          "endDate": _endDate?.toIso8601String(),
+          "daysOfTrip": daysOfTrip,
+          "costLevel": _selectedCostLevel,
+          "approxCost": approxCost,
+          "tripOverview": tripOverview,
+          "itinerary": itineraryText,
+          "whatsappInfo": _wacontactinfo,
+          "tripRole": "user",
+          "tripDone": false,
+          "isApproved":false,
+          "photos": uploadedImageUrls, // Store uploaded images in Firestore
+          "createdAt": DateTime.now().toIso8601String(),
+        };
+
+        // Get Firestore references
+        final tripsCollection = FirebaseFirestore.instance.collection('trips')
+            .doc(tripId);
+        final userTripRef = FirebaseFirestore.instance.collection('users').doc(
+            userId).collection('trip').doc(tripId);
+
+        // Use Firestore batch for atomic writes
         WriteBatch batch = FirebaseFirestore.instance.batch();
-
-        // ✅ Add trip data to 'trips' collection using a fixed tripId
         batch.set(tripsCollection, tripData);
-
-        // ✅ Store the same trip in the user's collection
         batch.set(userTripRef, tripData);
-
         await batch.commit();
 
+        FirebaseService().sendNotificationToAdmin(tripId, userId!);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Trip successfully hosted!')),
+          SnackBar(
+            content: Text('Trip successfully hosted! It will be visible to users after admin approval.'),
+          ),
         );
 
-        Navigator.push(context, MaterialPageRoute(builder: (context) => AdminNavigationPage()));
+        Navigator.push(
+            context, MaterialPageRoute(builder: (context) => NavigationPage()));
       } catch (error) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error saving trip: $error')),
+          SnackBar(content: Text('Error saving trip: $error'),
+              backgroundColor: Colors.red),
         );
       }
 
+      // Stop loading
       setState(() {
-        _isLoading = false; // Stop loading after process completes
+        _isLoading = false;
       });
     }
   }
 
+  List<String> _suggestions = [];
+
+
+  Future<void> fetchSuggestions(String query) async {
+    if (query.isEmpty) {
+      setState(() => _suggestions = []);
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    final url = Uri.parse(
+        'https://api.geoapify.com/v1/geocode/autocomplete?text=$query&apiKey=281c107a40344c3cb70e824e591654fe'
+    );
+
+    try {
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
+
+        List<String> newSuggestions = (data['features'] as List)
+            .map<String>((item) => item['properties']['formatted'].toString())
+            .toList();
+
+        setState(() {
+          _suggestions = newSuggestions;
+          _isLoading = false;
+        });
+
+        print("✅ Suggestions: $_suggestions");
+      } else {
+        print("❌ API Error: ${response.statusCode}");
+        setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      print("❌ Error fetching suggestions: $e");
+      setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kBackgroundColor,
       appBar: AppBar(
-        title: Text("Host a Trip",
-        style: TextStyle(color: Colors.white),
+        title: Text("Create Trip",
+        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
         ),
         backgroundColor: Color(0xFF134277),
         foregroundColor: Colors.white,
@@ -501,334 +623,164 @@ class _AddTripPageState extends State<AddTripPage> {
                 ],
               ),
               SizedBox(height: 20),
-              _buildTextField(
-                label: "Trip Title",
-                hint: "Enter the trip title",
-                onSaved: (value) => _tripTitle = value,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter Trip Title';
-                  }
-                  final usernameRegExp = RegExp(r'^[a-zA-Z]');
-                  if (!usernameRegExp.hasMatch(value)) {
-                    return 'Invalid Trip Title';
-                  }
-                  return null;
-                }
+              // Destination Input
+        Autocomplete<String>(
+          optionsBuilder: (TextEditingValue textEditingValue) async {
+            await fetchSuggestions(textEditingValue.text);
+            return _suggestions;
+          },
+          onSelected: (String selection) {
+            setState(() {
+              _destination = selection;  // Store the selected destination in _destination
+            });
+            print('User selected: $_destination');
+          },
+          fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+            return TextFormField(
+              controller: controller,
+              focusNode: focusNode,
+              decoration: InputDecoration(
+                labelText: "Destination",
+                labelStyle: TextStyle(color: Color(0xFF134277)),
+                hintText: "Enter the destination",
+                hintStyle: TextStyle(color: Colors.grey),
+                border: InputBorder.none,
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFF8BA7E8), width: 2),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFF134277), width: 2),
+                ),
               ),
-              SizedBox(height: 5),
-              Padding(
-                padding: const EdgeInsets.all(0.00),
-                child: Autocomplete<String>(
-                  optionsBuilder: (TextEditingValue textEditingValue) {
-                    if (textEditingValue.text.isEmpty) {
-                      return const Iterable<String>.empty();
-                    }
-                    return _destinations.where((destination) =>
-                        destination.toLowerCase().contains(textEditingValue.text.toLowerCase()));
-                  },
-                  onSelected: (String selection) {
-                    print('User selected: $selection');
-                  },
-                  fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-                    return TextFormField( // ✅ Corrected: Now returning TextFormField
-                      controller: controller,
-                      focusNode: focusNode,
-                      decoration: InputDecoration(
-                        labelText: "Destination",
-                        labelStyle: TextStyle(
-                          color: Color(0xFF134277),
-                        ),
-                        hintText: "Enter the destination",
-                        hintStyle: TextStyle(
-                          color: Colors.grey,
-                        ),
-                        border: InputBorder.none,
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF8BA7E8), width: 2),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF134277), width: 2),
-                        ),
-                        errorBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Colors.red, width: 1),
-                        ),
-                        focusedErrorBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Colors.red, width: 2),
-                        ),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return "Please enter Destination";
-                        }
-                        return null;
-                      },
-                      onSaved: (value) => _destination = value,
-                    );
-                  },
-                  optionsViewBuilder: (context, onSelected, options) {
-                    return Align(
-                      alignment: Alignment.topLeft,
-                      child: Material(
-                        color: Colors.white, // Background color of the suggestion box
-                        elevation: 4, // Adds shadow effect
-                        borderRadius: BorderRadius.circular(20),
+            );
+          },
+          optionsViewBuilder: (context, onSelected, options) {
+            return Align(
+              alignment: Alignment.topLeft,
+              child: Material(
+                color: Colors.white,
+                elevation: 4,
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  width: MediaQuery.of(context).size.width * 0.925,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                  child: _isLoading
+                      ? Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Center(
+                      child: CircularProgressIndicator(),
+                    ),
+                  )
+                      : ListView.builder(
+                    padding: EdgeInsets.zero,
+                    itemCount: options.length,
+                    shrinkWrap: true,
+                    itemBuilder: (BuildContext context, int index) {
+                      final String option = options.elementAt(index);
+                      return GestureDetector(
+                        onTap: () => onSelected(option),
                         child: Container(
-                          width: MediaQuery.of(context).size.width * 0.925, // Adjust width
+                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                           decoration: BoxDecoration(
                             color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.white, width: 2), // Border color
+                            border: Border(
+                              bottom: BorderSide(color: Colors.grey.shade300),
+                            ),
                           ),
-                          child: ListView.builder(
-                            padding: EdgeInsets.zero,
-                            itemCount: options.length,
-                            shrinkWrap: true,
-                            itemBuilder: (BuildContext context, int index) {
-                              final String option = options.elementAt(index);
-                              return GestureDetector(
-                                onTap: () => onSelected(option),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white, // Default item background
-                                    border: Border(
-                                      bottom: BorderSide(color: Colors.grey.shade300), // Border between items
-                                    ),
-                                  ),
-                                  child: Text(
-                                    option,
-                                    style: TextStyle(
-                                      color: Colors.black, // Custom text color
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
+                          child: Text(
+                            option,
+                            style: TextStyle(color: Colors.black),
                           ),
                         ),
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 ),
               ),
-              SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                dropdownColor: kBackgroundColor,
-                value: _selectedCategory!.isNotEmpty ? _selectedCategory : null,
-                hint: Text("Select trip Category",style: TextStyle(color: Color(0xFF134277),),),
-                items: tripcat.map((category) {
-                  return DropdownMenuItem<String>(
-                    value: category,
-                    child: Text(category),
+            );
+          },
+        ),
+
+              SizedBox(height: 15),
+              // Date Pickers in one row
+              Row(
+                children: [
+                  Expanded(child: _buildDateSelector("Start Date", _startDate, () => _selectStartDate(context),)),
+                  SizedBox(width: 12),
+                  Expanded(child: _buildDateSelector("End Date", _endDate, () => _selectEndDate(context),)),
+                ],
+              ),
+              SizedBox(height: 15),
+
+              // Trip Category Selection with Chips
+              _buildTitle("Trip Category"),
+              Wrap(
+                spacing: 10,
+                children: tripcat.map((category) {
+                  return ChoiceChip(
+                    label: Text(category),
+                    selected: _selectedCategory == category,
+                    selectedColor: Color(0xFF134277),
+                    backgroundColor: Colors.grey[200],
+                    showCheckmark: false,
+                    labelStyle: TextStyle(color: _selectedCategory == category ? Colors.white : Colors.black),
+                    onSelected: (selected) {
+                      setState(() {
+                        _selectedCategory = selected ? category : null;
+                      });
+                    },
+                    shape: RoundedRectangleBorder(
+                      side: BorderSide(color: Color(0xFF8BA7E8), width: 2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   );
                 }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedCategory = value ?? '';  // Ensure it's not null
-                  });
-                },
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please select Trip Category';
-                  }
-                  return null;
-                },
-                decoration: InputDecoration(
-                  hintStyle: TextStyle(
-                    color: Color(0xFF134277), // Hint text color
-                  ),
-                  border: InputBorder.none,
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF8BA7E8), width: 2),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF134277), width: 2),
-                  ),
-                  errorBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.red, width: 1),
-                  ),
-                  focusedErrorBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.red, width: 2),
-                  ),
-                ),
               ),
               SizedBox(height: 10),
-              _buildDateField(
-                context,
-                label: "Start Date",
-                date: _startDate,
-                onTap: () => _selectStartDate(context),
-                validator: validateStartDate,
-              ),
-              _buildTimeField(
-                context,
-                label: "Start Time",
-                time: _startTime,
-                onTap: () => _selectTime(context, true),
-              ),
-              _buildDateField(
-                context,
-                label: "Trip End Date",
-                date: _endDate,
-                onTap: () => _selectEndDate(context),
-                validator: validateEndDate,
-              ),
-              _buildTimeField(
-                context,
-                label: "End Time",
-                time: _endTime,
-                onTap: () => _selectTime(context, false),
-              ),
-              _buildTextField(
-                label: "Description",
-                hint: "Enter trip description",
-                onSaved: (value) => _description = value,
-                maxLines: 3,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter Description';
-                  }
-                  return null;
-                },
-              ),
-              _buildTextField(
-                label: "Meeting Point",
-                hint: "Enter the meeting point",
-                onSaved: (value) => _meetingPoint = value,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter Meeting Point';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                dropdownColor: kBackgroundColor,
-                value: transport.contains(selectedTransport) ? selectedTransport : null,
-                hint: Text("Select Transportation",style: TextStyle(color: Color(0xFF134277),),),
-                items: transport.map((category) {
-                  return DropdownMenuItem<String>(
-                    value: category,
-                    child: Text(category),
+
+              // Trip Cost Level Selection
+              _buildTitle("Trip Cost Level"),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: _costLevels.map((cost) {
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _selectedCostLevel = cost;
+                      });
+                    },
+                    child: Container(
+                      width: MediaQuery.of(context).size.width*0.29,
+                      padding: EdgeInsets.symmetric(vertical: 14),
+                      decoration: BoxDecoration(
+                        gradient: _selectedCostLevel == cost
+                            ? LinearGradient(colors: [Color(0xFF134277), Color(0xFF134277)])
+                            : LinearGradient(colors: [Colors.grey[200]!, Colors.grey[200]!]),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: _selectedCostLevel == cost ? Color(0xFF134277) : Colors.grey[400]!, // Border color
+                          width: 2, // Border width
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(cost,
+                            style: TextStyle(
+                                fontWeight: FontWeight.w500,
+                                color: _selectedCostLevel == cost ? Colors.white : Colors.black)),
+                      ),
+                    ),
                   );
                 }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    selectedTransport = value ?? '';  // Ensure it's not null
-                  });
-                },
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please select Transportation';
-                  }
-                  return null;
-                },
-                decoration: InputDecoration(
-                  hintStyle: TextStyle(
-                    color: Color(0xFF134277), // Hint text color
-                  ),
-                  border: InputBorder.none,
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF8BA7E8), width: 2),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF134277), width: 2),
-                  ),
-                  errorBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.red, width: 1),
-                  ),
-                  focusedErrorBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.red, width: 2),
-                  ),
-                ),
               ),
-              SizedBox(height: 8,),
-              _buildTextField(
-                label: "Accommodation Details",
-                hint: "Enter accommodation details",
-                onSaved: (value) => _accommodation = value,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter Accommodation Details';
-                  }
-                  return null;
-                },
-              ),
-              _buildTextField(
-                label: "Maximum Participants",
-                hint: "Enter the number of participants",
-                keyboardType: TextInputType.number,
-                onSaved: (value) {
-                  if (value != null && value.isNotEmpty) {
-                    _maxParticipants = int.tryParse(value); // Convert String to int safely
-                  }
-                },
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter Maximum Participants';
-                  }
-                  if (!RegExp(r'^[0-9]+$').hasMatch(value)) {
-                    return 'Enter valid Maximum Participants(must be digits)';
-                  }
-                  return null;
-                },
-              ),
-              _buildTextField(
-                label: "Trip Fee (per person)",
-                hint: "Enter the fee",
-                keyboardType: TextInputType.number,
-                onSaved: (value) => _tripFee = double.tryParse(value ?? ''),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter Trip Fee (per person)';
-                  }
-                  if (!RegExp(r'^[0-9]+$').hasMatch(value)) {
-                    return 'Invalid Trip Fee(must be digits)';
-                  }
-                  return null;
-                },
-              ),
-              _buildTextField(
-                label: "Included Services",
-                hint: "Enter included services",
-                onSaved: (value) => _includedServices = value,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter Included Services';
-                  }
-                  return null;
-                },
-              ),
-              _buildTextField(
-                label: "Contact Information",
-                hint: "Enter contact details",
-                keyboardType: TextInputType.number,
-                onSaved: (value) => _contactInfo = value,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter Contact Information';
-                  }
-                  final phoneRegExp = RegExp(r'^[0-9]{10}$');
-                  if (!phoneRegExp.hasMatch(value)) {
-                    return 'Invalid contact details (must be 10 digits)';
-                  }
-                  return null;
-                },
-              ),
+              SizedBox(height: 15),
+
+              // WhatsApp Contact Field
               _buildTextField(
                 label: "WhatsaApp contact",
                 hint: "Enter WhatsaApp contact details",
@@ -845,70 +797,9 @@ class _AddTripPageState extends State<AddTripPage> {
                   return null;
                 },
               ),
-              // _buildTextField(
-              //   label: "Items to Bring",
-              //   hint: "Enter Items to Bring",
-              //   onSaved: (value) => _itemsToBring = value,
-              //   maxLines: 2,
-              //   validator: (value) {
-              //     if (value == null || value.isEmpty) {
-              //       return 'Please enter Items to Bring';
-              //     }
-              //     return null;
-              //   },
-              // ),
-              // _buildTextField(
-              //   label: "Guidelines and Rules",
-              //   hint: "Enter guidelines",
-              //   onSaved: (value) => _guidelines = value,
-              //   maxLines: 2,
-              //   validator: (value) {
-              //     if (value == null || value.isEmpty) {
-              //       return 'Please enter Guidelines and Rules';
-              //     }
-              //     return null;
-              //   },
-              // ),
-              // _buildTextField(
-              //   label: "Cancellation Policy",
-              //   hint: "Enter cancellation policy",
-              //   onSaved: (value) => _cancellationPolicy = value!,
-              //   validator: (value) {
-              //     if (value == null || value.isEmpty) {
-              //       return 'Please enter Cancellation Policy';
-              //     }
-              //     return null;
-              //   },
-              // ),
-              SizedBox(height: 7,),
-              //USERNAME FIELD
-              TextFormField(
-                readOnly: true,
-                initialValue: _hostusername,
-                decoration: InputDecoration(
-                  //hintText: _hostusername!.isEmpty ? 'Loading...' : _hostusername,
-                  hintText: _hostusername,
-                  prefixIcon: Icon(Icons.person),
-                  border: InputBorder.none,
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF8BA7E8), width: 2),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF134277), width: 2),
-                  ),
-                  errorBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.red, width: 1),
-                  ),
-                  focusedErrorBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.red, width: 2),
-                  ),
-                ),
-              ),
-              SizedBox(height: 20),
+              SizedBox(height: 15),
+
+              // Submit Button
               Center(
                 child: Container(
                   width: MediaQuery.of(context).size.width*0.8,
@@ -926,8 +817,8 @@ class _AddTripPageState extends State<AddTripPage> {
                     ),
                     onPressed: _isLoading ? null : _saveTrip,
                     child:_isLoading
-                      ? Lottie.asset("assets/animation/loadwithplane.json")
-                      : Text("Host Trip", style: TextStyle(fontSize: 18,color: Colors.white)),
+                        ? CircularProgressIndicator()
+                        : Text("Create Trip", style: TextStyle(fontSize: 18,color: Colors.white)),
                   ),
                 ),
               ),
@@ -937,6 +828,34 @@ class _AddTripPageState extends State<AddTripPage> {
       ),
     );
   }
+
+
+  Widget _buildDateSelector(String label, DateTime? date, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: Color(0xFF8BA7E8), // Border color
+            width: 2, // Border width
+          ),
+          borderRadius: BorderRadius.circular(8),
+        ),        child: Center(
+          child: Text(date == null ? label : DateFormat('dd MMM yyyy').format(date),
+              style: TextStyle(fontWeight: FontWeight.w400,color: Colors.black)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTitle(String title) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 8),
+      child: Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+    );
+  }
+
   Widget _buildTextField({
     required String label,
     required String hint,

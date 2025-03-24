@@ -1,7 +1,11 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:http/http.dart' as http;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-
 import '../const.dart';
 import '../models/travel_model.dart';
 
@@ -396,21 +400,20 @@ class _EditTripScreenState extends State<AdminTripEditScreen> {
   bool _isLoading = false;
 
   // Define controllers
-  late TextEditingController _tripTitleController;
   late TextEditingController _descriptionController;
   late TextEditingController _meetingPointController;
   late TextEditingController _accommodationController;
-  late TextEditingController _includedServicesController;
-  late TextEditingController _contactInfoController;
   late TextEditingController _whatsappInfoController;
   late TextEditingController _tripFeeController;
   late TextEditingController _maxParticipantsController;
   late TextEditingController _destinationController;
+  late TextEditingController _fromLocationController;
+  late TextEditingController _toLocationController;
 
   String? _selectedCategory, _destination, selectedTransport;
-  DateTime? _startDate;
-  DateTime? _endDate;
-  String? _startTime, _endTime;
+  DateTime? _startDateTime;
+  DateTime? _endDateTime ;
+  //String? _startTime, _endTime;
 
   final List<String> _destinationsList = [
     // 🌊 Beach Destinations
@@ -514,40 +517,57 @@ class _EditTripScreenState extends State<AdminTripEditScreen> {
     "Tawang, Arunachal Pradesh",
   ];
 
+  List<String> imageUrls = []; // List to store image URLs
+  File? _selectedImage;
+  final picker = ImagePicker();
+
+  final List<String> tripcat = [
+    "Adventure",
+    "Beach Vacations",
+    "Historical Tours",
+    "Road Trips",
+    "Volunteer & Humanitarian",
+    "Wellness"
+  ];
+
+  List<String> transport = ["Car", "Bus", "Train", "Flight"];
+
+  List<String> allServices = [
+    "Transport", "Food & Drinks", "Tour Guide",
+    "Emergency Help", "Luggage Support",
+    "WiFi & Entertainment", "Photography"
+  ];
+  List<String> _includedServices = [];
+
   @override
   void initState() {
     super.initState();
     // Initialize controllers with trip data
-    _tripTitleController = TextEditingController(text: widget.trip.name);
+    imageUrls = List<String>.from(widget.trip.image ?? []);
     _descriptionController = TextEditingController(text: widget.trip.des);
     _meetingPointController = TextEditingController(text: widget.trip.meetingPoint);
     _accommodationController = TextEditingController(text: widget.trip.accommodation);
-    _includedServicesController = TextEditingController(text: widget.trip.includedServices);
-    _contactInfoController = TextEditingController(text: widget.trip.contactInfo);
     _whatsappInfoController = TextEditingController(text: widget.trip.whatsappInfo);
     _tripFeeController = TextEditingController(text: widget.trip.price.toString());
     _maxParticipantsController = TextEditingController(text: widget.trip.maxpart.toString());
-
+    _includedServices = List<String>.from(widget.trip.includedServices);
     _destinationController = TextEditingController(text: widget.trip.location);
-
+    _fromLocationController = TextEditingController(text: widget.trip.from);
+    _toLocationController = TextEditingController(text: widget.trip.to);
     _destination = widget.trip.location;
     _selectedCategory = widget.trip.tripCategory;
     selectedTransport = widget.trip.transportation;
-    _startDate = widget.trip.startDate;
-    _endDate = widget.trip.endDate;
-    _startTime = widget.trip.startTime;
-    _endTime = widget.trip.endTime;
+    _startDateTime = DateTime.parse(widget.trip.startDateTime.toString());
+    _endDateTime = DateTime.parse(widget.trip.endDateTime.toString());
+
   }
 
 
   @override
   void dispose() {
-    _tripTitleController.dispose();
     _descriptionController.dispose();
     _meetingPointController.dispose();
     _accommodationController.dispose();
-    _includedServicesController.dispose();
-    _contactInfoController.dispose();
     _whatsappInfoController.dispose();
     _tripFeeController.dispose();
     _maxParticipantsController.dispose();
@@ -569,29 +589,31 @@ class _EditTripScreenState extends State<AdminTripEditScreen> {
         DocumentReference tripDocRef = _firestore.collection('trips').doc(widget.trip.id);
 
         int? dayOfTrip;
-        if (_startDate != null && _endDate != null) {
-          dayOfTrip = _endDate!.difference(_startDate!).inDays;
+        if (_startDateTime != null && _endDateTime != null) {
+          dayOfTrip = _endDateTime!.difference(_startDateTime!).inDays;
+        }
+
+        if (_selectedImage != null) {
+          await _updateImage();
         }
 
         // Data to update
         Map<String, dynamic> updatedData = {
-          'tripTitle': _tripTitleController.text.trim(),
-          'description': _descriptionController.text.trim(),
           'meetingPoint': _meetingPointController.text.trim(),
           'accommodation': _accommodationController.text.trim(),
-          'includedServices': _includedServicesController.text.trim(),
-          'contactInfo': _contactInfoController.text.trim(),
+          'from':_fromLocationController.text.trim(),
+          'to':_toLocationController.text.trim(),
+          'includedServices': _includedServices,
           'whatsappInfo': _whatsappInfoController.text.trim(),
           'tripFee': double.tryParse(_tripFeeController.text.trim()) ?? 0.0,
           'maxParticipants': int.tryParse(_maxParticipantsController.text.trim()) ?? 0,
           'destination': _destinationController.text, // Fixed destination field
           'category': _selectedCategory,
           'transportation': selectedTransport,
-          'startDate': _startDate?.toIso8601String(), // Convert DateTime to String
-          'endDate': _endDate?.toIso8601String(),
-          'startTime': _startTime,
-          'endTime': _endTime,
-          'daysOfTrip': dayOfTrip
+          'startDateTime': _startDateTime!.toIso8601String(), // Convert DateTime to String
+          'endDateTime': _endDateTime!.toIso8601String(),
+          'daysOfTrip': dayOfTrip,
+          'photos': imageUrls,
         };
 
         // Update the main trip document in the "trips" collection
@@ -604,7 +626,10 @@ class _EditTripScreenState extends State<AdminTripEditScreen> {
               .doc(widget.trip.hostId)
               .collection('trip')
               .doc(widget.trip.id);
-          await userTripRef.update(updatedData);
+          await userTripRef.update({
+            ...updatedData,
+            'photos': imageUrls, // Ensure photos update in user subcollection
+          });
         }
 
         // Check if the trip exists in the "admin" collection before updating
@@ -612,7 +637,10 @@ class _EditTripScreenState extends State<AdminTripEditScreen> {
         DocumentSnapshot adminTripSnapshot = await adminTripRef.get();
 
         if (adminTripSnapshot.exists) {
-          await adminTripRef.update(updatedData);
+          await adminTripRef.update({
+            ...updatedData,
+            'photos': imageUrls, // Ensure photos update in user subcollection
+          });
         }
 
         // Show success message
@@ -634,94 +662,152 @@ class _EditTripScreenState extends State<AdminTripEditScreen> {
     }
   }
 
-  Future<void> _pickStartDate() async {
-    DateTime today = DateTime.now();
-    DateTime? pickedDate = await showDatePicker(
-      context: context,
-      initialDate: _startDate != null && _startDate!.isAfter(today)
-          ? _startDate!
-          : today, // Ensures initialDate is valid
-      firstDate: today, // Prevent past dates
-      lastDate: DateTime(2100),
-    );
+  // Pick an image from gallery
+  Future<void> _pickImage() async {
+    final XFile? image = await ImagePicker().pickImage(source: ImageSource.gallery);
+    if (image == null) return; // No image selected
 
-    if (pickedDate != null) {
+    File imageFile = File(image.path);
+
+    // Upload to Cloudinary and get the URL
+    String? imageUrl = await _uploadToCloudinary(imageFile);
+
+    if (imageUrl != null) {
       setState(() {
-        _startDate = pickedDate;
-
-        // Ensure end date is after start date
-        if (_endDate != null && _endDate!.isBefore(_startDate!)) {
-          _endDate = null; // Reset invalid end date
-        }
+        imageUrls.add(imageUrl); // Update UI immediately
       });
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Image Upload Failed")),
+      );
     }
   }
 
-  // ✅ Pick End Date (Must be After Start Date)
-  Future<void> _pickEndDate() async {
-    if (_startDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Please select a start date first.")),
-      );
+
+  // Extract public ID from Cloudinary URL
+  String? _extractPublicId(String? url) {
+    if (url == null) return null;
+    Uri uri = Uri.parse(url);
+    List<String> segments = uri.pathSegments;
+
+    if (segments.length > 1) {
+      String filename = segments.last;
+      return filename.split('.').first; // Remove file extension
+    }
+    return null;
+  }
+
+  // Delete image from Cloudinary
+  Future<void> _deleteFromCloudinary(String? imageUrl) async {
+    if (imageUrl == null) return;
+
+    String? publicId = _extractPublicId(imageUrl);
+    if (publicId == null) {
+      print("Failed to extract public ID.");
       return;
     }
 
-    DateTime? pickedDate = await showDatePicker(
-      context: context,
-      initialDate: _endDate ?? _startDate!,
-      firstDate: _startDate!, // End date must be after start date
-      lastDate: DateTime(2100),
+    final String cloudName = 'dz0shhr6k'; // Your Cloudinary cloud name
+    final String apiKey = '763225618255152'; // Your Cloudinary API Key
+    final String apiSecret = 'DFCYPhLVFLb8pdNwwopUAPM_i8w';
+
+    int timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    String stringToSign = "public_id=$publicId&timestamp=$timestamp$apiSecret";
+    String signature = sha1.convert(utf8.encode(stringToSign)).toString();
+
+    final url = Uri.parse("https://api.cloudinary.com/v1_1/$cloudName/image/destroy");
+
+    final response = await http.post(
+      url,
+      body: {
+        "public_id": publicId,
+        "api_key": apiKey,
+        "timestamp": timestamp.toString(),
+        "signature": signature,
+      },
     );
 
-    if (pickedDate != null) {
+    if (response.statusCode == 200) {
+      print("✅ Image deleted successfully from Cloudinary.");
+    } else {
+      print("❌ Failed to delete image: ${response.body}");
+    }
+  }
+
+
+  // Upload new image to Cloudinary
+  Future<String?> _uploadToCloudinary(File imageFile) async {
+    final cloudinaryUrl =
+        "https://api.cloudinary.com/v1_1/dz0shhr6k/image/upload";
+    final uploadPreset = "gobuddy-images";
+
+    var request = http.MultipartRequest("POST", Uri.parse(cloudinaryUrl));
+    request.fields['upload_preset'] = uploadPreset;
+    request.files.add(await http.MultipartFile.fromPath("file", imageFile.path));
+
+    var response = await request.send();
+
+    if (response.statusCode == 200) {
+      var responseData = jsonDecode(await response.stream.bytesToString());
+      return responseData["secure_url"];
+    } else {
+      return null;
+    }
+  }
+
+  // Add new image to Firestore
+  Future<void> _updateImage() async {
+    if (_selectedImage == null) return;
+
+    // Upload the new image
+    String? uploadedImageUrl = await _uploadToCloudinary(_selectedImage!);
+
+    if (uploadedImageUrl != null) {
       setState(() {
-        _endDate = pickedDate;
+        imageUrls.add(uploadedImageUrl); // Add to local list
       });
+
+      await FirebaseFirestore.instance
+          .collection('trips')
+          .doc(widget.trip.id)
+          .update({'photos': imageUrls}); // Update Firestore array
+
+      setState(() {
+        _selectedImage = null;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Image Added Successfully")),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Image Upload Failed")),
+      );
     }
   }
 
-  // Convert "HH:mm AM/PM" string to TimeOfDay
-  TimeOfDay _parseTime(String timeString) {
-    final format = DateFormat.jm(); // Format: "08:30 AM"
-    try {
-      final DateTime dateTime = format.parse(timeString);
-      return TimeOfDay(hour: dateTime.hour, minute: dateTime.minute);
-    } catch (e) {
-      return TimeOfDay(hour: 0, minute: 0);
-    }
-  }
 
-  // Convert TimeOfDay to "HH:mm AM/PM" string
-  String _formatTime(TimeOfDay time) {
-    final DateTime now = DateTime.now();
-    final DateTime dateTime = DateTime(now.year, now.month, now.day, time.hour, time.minute);
-    return DateFormat.jm().format(dateTime); // Example: "08:30 AM"
-  }
+  // Delete a specific image
+  Future<void> _deleteImage(int index) async {
+    String imageUrlToDelete = imageUrls[index];
 
-  // Show Time Picker
-  Future<void> _selectTime(BuildContext context, bool isStartTime) async {
-    final TimeOfDay? picked = await showTimePicker(
-      context: context,
-      initialTime: isStartTime ? _parseTime(_startTime!) : _parseTime(_endTime!),
+    // Delete image from Cloudinary
+    await _deleteFromCloudinary(imageUrlToDelete);
+
+    // Remove from Firestore
+    imageUrls.removeAt(index);
+    await FirebaseFirestore.instance
+        .collection('trips')
+        .doc(widget.trip.id)
+        .update({'photos': imageUrls});
+
+    setState(() {});
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Image Deleted Successfully")),
     );
-
-    if (picked != null) {
-      setState(() {
-        if (isStartTime) {
-          _startTime = _formatTime(picked);
-        } else {
-          if (_parseTime(_startTime!).hour > picked.hour ||
-              (_parseTime(_startTime!).hour == picked.hour && _parseTime(_startTime!).minute > picked.minute)) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text("End time must be after start time!")),
-            );
-          } else {
-            _endTime = _formatTime(picked);
-          }
-        }
-      });
-    }
   }
+
 
 
   @override
@@ -738,56 +824,47 @@ class _EditTripScreenState extends State<AdminTripEditScreen> {
           key: _formKey,
           child: ListView(
             children: [
-              _buildTextField(
-                controller: _tripTitleController,
-                labelText: "Trip Title",
-                hintText: "Enter your Trip Title",
-                keyboardType: TextInputType.name,
-                maxLines: 1,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter Trip Title';
-                  }
-                  final usernameRegExp = RegExp(r'^[a-zA-Z]');
-                  if (!usernameRegExp.hasMatch(value)) {
-                    return 'Invalid Trip Title';
-                  }
-                  return null;
-                },
+              Row(
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: _pickImage,
+                    icon: Icon(Icons.add_a_photo, color: Colors.black),
+                    label: Text("Pick Image"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Color(0xFF8BA7E8),
+                      foregroundColor: Colors.black,
+                    ),
+                  ),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: imageUrls.isNotEmpty
+                        ? Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: imageUrls.asMap().entries.map((entry) {
+                        int index = entry.key;
+                        String photoUrl = entry.value;
+
+                        return Stack(
+                          children: [
+                            Image.network(photoUrl, width: 100, height: 100, fit: BoxFit.cover),
+                            Positioned(
+                              right: 0,
+                              top: 0,
+                              child: GestureDetector(
+                                onTap: () => _deleteImage(index),
+                                child: Icon(Icons.cancel, color: Colors.red),
+                              ),
+                            )
+                          ],
+                        );
+                      }).toList(),
+                    )
+                        : Text("No photos added yet"),
+                  ),
+                ],
               ),
-              // Destination Field with Autocomplete
-              // Text("Destination", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              // SizedBox(height: 8),
-              // Autocomplete<String>(
-              //   optionsBuilder: (TextEditingValue textEditingValue) {
-              //     if (textEditingValue.text.isEmpty) return [];
-              //     return _destinationsList.where((String option) {
-              //       return option.toLowerCase().contains(textEditingValue.text.toLowerCase());
-              //     });
-              //   },
-              //   onSelected: (String selection) {
-              //     setState(() {
-              //       _destinationController.text = selection;
-              //     });
-              //   },
-              //   fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-              //     controller.text = _destinationController.text;
-              //     return TextField(
-              //       controller: controller,
-              //       focusNode: focusNode,
-              //       decoration: InputDecoration(
-              //         labelText: "Enter Destination",
-              //         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-              //       ),
-              //       onChanged: (value) {
-              //         setState(() {
-              //           _destinationController.text = value;
-              //         });
-              //       },
-              //     );
-              //   },
-              // ),
-              //destination
+              //DEstination
               _buildAutoCompleteTextField(
                 controller: _destinationController,
                 labelText: "Destination",
@@ -802,146 +879,125 @@ class _EditTripScreenState extends State<AdminTripEditScreen> {
                   return null;
                 },
               ),
-              // Text("Trip Category", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              // SizedBox(height: 8),
-              // DropdownButtonFormField<String>(
-              //   value: _selectedCategory,
-              //   decoration: InputDecoration(
-              //     border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-              //     contentPadding: EdgeInsets.symmetric(horizontal: 10),
-              //   ),
-              //   items: [
-              //     "Adventure Trips",
-              //     "Beach Vacations",
-              //     "Cultural & Historical Tours",
-              //     "Road Trips",
-              //     "Volunteer & Humanitarian Trips",
-              //     "Wellness Trips"
-              //   ].map((String category) {
-              //     return DropdownMenuItem<String>(
-              //       value: category,
-              //       child: Text(category),
-              //     );
-              //   }).toList(),
-              //   onChanged: (value) {
-              //     setState(() {
-              //       _selectedCategory = value;
-              //     });
-              //   },
-              // ),
-              //trip category
-              _buildDropdownButtonFormField(
-                labelText: "Trip Category",
-                options: [
-                  "Adventure Trips",
-                  "Beach Vacations",
-                  "Cultural & Historical Tours",
-                  "Road Trips",
-                  "Volunteer & Humanitarian Trips",
-                  "Wellness Trips"
+              //From To
+              SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _fromLocationController, // Controller for "From"
+                      decoration: InputDecoration(
+                        labelText: "From",
+                        hintText: "Enter starting location",
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter Trip location';
+                        }
+                        final locationRegExp = RegExp(r'^[a-zA-Z\s]+$');
+                        if (!locationRegExp.hasMatch(value)) {
+                          return 'Invalid Trip location';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                  SizedBox(width: 10), // Space between fields
+                  Expanded(
+                    child: TextFormField(
+                      controller: _toLocationController, // Controller for "To"
+                      decoration: InputDecoration(
+                        labelText: "To",
+                        hintText: "Enter destination",
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter Trip destination';
+                        }
+                        final locationRegExp = RegExp(r'^[a-zA-Z\s]+$');
+                        if (!locationRegExp.hasMatch(value)) {
+                          return 'Invalid Trip destination';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
                 ],
-                selectedValue: _selectedCategory,
-                onChanged: (value) {
-                  setState(() {
-                    _selectedCategory = value;
-                  });
-                },
               ),
-              //StartDate
-              // SizedBox(height: 20),
-              // Text("Start Date", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              // SizedBox(height: 8),
-              // GestureDetector(
-              //   onTap: _pickStartDate,
-              //   child: Container(
-              //     padding: EdgeInsets.all(12),
-              //     decoration: BoxDecoration(
-              //       border: Border.all(color: Colors.grey),
-              //       borderRadius: BorderRadius.circular(10),
-              //     ),
-              //     child: Text(
-              //       _startDate != null ? DateFormat("yyyy-MM-dd").format(_startDate!) : "Select Start Date",
-              //       style: TextStyle(fontSize: 16),
-              //     ),
-              //   ),
-              // ),
-              // SizedBox(height: 20),
-              _buildDatePicker(
-                labelText: "Start Date",
-                selectedDate: _startDate,
-                onTap: _pickStartDate,
+              SizedBox(height: 10),
+              //Trip Categgory
+              Text("Trip Category : ", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+              SizedBox(height: 6),
+              Wrap(
+                spacing: 8, // Space between chips
+                children: tripcat.map((category) {
+                  return ChoiceChip(
+                    label: Text(category),
+                    selected: _selectedCategory == category, // Default selection
+                    onSelected: (selected) {
+                      setState(() {
+                        _selectedCategory = selected ? category : _selectedCategory; // Change category only if selected
+                      });
+                    },
+                    showCheckmark: false,
+                    selectedColor: Color(0xFF134277), // Selected chip color
+                    backgroundColor: Colors.grey[100], // Default chip color
+                    labelStyle: TextStyle(
+                      color: _selectedCategory == category ? Colors.white : Colors.black87,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      side: BorderSide(width: 1.5, color: Colors.grey),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  );
+                }).toList(),
               ),
-              //Text("Start Time", style: TextStyle(fontWeight: FontWeight.bold)),
-              // InkWell(
-              //   onTap: () => _selectTime(context, true),
-              //   child: Container(
-              //     padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-              //     decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(10)),
-              //     child: Text(_startTime!),
-              //   ),
-              // ),
-              _buildTimePicker(
-                labelText: "Start Time",
-                selectedTime: _startTime!,
-                onTap: () => _selectTime(context, true),
+              SizedBox(height: 20),
+              //Date and Time
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildDateTimeSelector(
+                      label: "Start Date & Time",
+                      dateTime: _startDateTime,
+                      onTap: () async {
+                        DateTime? selected = await _pickDateTime(context, initialDateTime: _startDateTime);
+                        if (selected != null) {
+                          setState(() {
+                            _startDateTime = selected;
+                            // Ensure end date is not before start date
+                            if (_endDateTime != null && _endDateTime!.isBefore(_startDateTime!)) {
+                              _endDateTime = null;
+                            }
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: _buildDateTimeSelector(
+                      label: "End Date & Time",
+                      dateTime: _endDateTime,
+                      onTap: () async {
+                        DateTime? selected = await _pickDateTime(
+                          context,
+                          initialDateTime: _endDateTime,
+                          firstDate: _startDateTime ?? DateTime.now(), // Prevent selecting past start date
+                        );
+                        if (selected != null) {
+                          setState(() {
+                            _endDateTime = selected;
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                ],
               ),
-              // 🗓 End Date Field
-              // Text("End Date", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              // SizedBox(height: 8),
-              // GestureDetector(
-              //   onTap: _pickEndDate,
-              //   child: Container(
-              //     padding: EdgeInsets.all(12),
-              //     decoration: BoxDecoration(
-              //       border: Border.all(color: Colors.grey),
-              //       borderRadius: BorderRadius.circular(10),
-              //     ),
-              //     child: Text(
-              //       _endDate != null ? DateFormat("yyyy-MM-dd").format(_endDate!) : "Select End Date",
-              //       style: TextStyle(fontSize: 16),
-              //     ),
-              //   ),
-              // ),
-              // SizedBox(height: 10),
-              _buildDatePicker(
-                labelText: "End Date",
-                selectedDate: _endDate,
-                onTap: _pickEndDate,
-              ),
-              // End Time Picker
-              // Text("End Time", style: TextStyle(fontWeight: FontWeight.bold)),
-              // InkWell(
-              //   onTap: () => _selectTime(context, false),
-              //   child: Container(
-              //     padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-              //     decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(10)),
-              //     child: Text(_endTime!),
-              //   ),
-              // ),
-              _buildTimePicker(
-                labelText: "End Time",
-                selectedTime: _endTime!,
-                onTap: () => _selectTime(context, false),
-              ),
-
-              //description
-              _buildTextField(
-                controller: _descriptionController,
-                labelText: "Description",
-                hintText: "Enter your Description",
-                keyboardType: TextInputType.name,
-                maxLines: 3,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter Description';
-                  }
-                  final usernameRegExp = RegExp(r'^[a-zA-Z]');
-                  if (!usernameRegExp.hasMatch(value)) {
-                    return 'Invalid Description';
-                  }
-                  return null;
-                },
-              ),
+              SizedBox(height: 10),
               //Meeting Point
               _buildTextField(
                 controller: _meetingPointController,
@@ -960,51 +1016,45 @@ class _EditTripScreenState extends State<AdminTripEditScreen> {
                   return null;
                 },
               ),
-              // Transportation Dropdown
-              // Text("Transportation", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              // SizedBox(height: 8),
-              // DropdownButtonFormField<String>(
-              //   value: selectedTransport,
-              //   decoration: InputDecoration(
-              //     border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-              //     contentPadding: EdgeInsets.symmetric(horizontal: 10),
-              //   ),
-              //   items: [
-              //     'Car',
-              //     'Bus',
-              //     'Train',
-              //     'Flight',
-              //     'Bike',
-              //     'Boat'
-              //   ].map((String transport) {
-              //     return DropdownMenuItem<String>(
-              //       value: transport,
-              //       child: Text(transport),
-              //     );
-              //   }).toList(),
-              //   onChanged: (value) {
-              //     setState(() {
-              //       selectedTransport = value;
-              //     });
-              //   },
-              // ),
-              _buildDropdownButtonFormField(
-                labelText: "Transportation",
-                options: [
-                  'Car',
-                  'Bus',
-                  'Train',
-                  'Flight',
-                  'Bike',
-                  'Boat'
-                ],
-                selectedValue: selectedTransport,
-                onChanged: (value) {
-                  setState(() {
-                    selectedTransport = value;
-                  });
-                },
+             //Transportation
+              Text("Transportation : ", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+              SizedBox(height: 6),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: transport.map((category) {
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        selectedTransport = category; // Update selected transport
+                      });
+                    },
+                    child: Container(
+                      width: MediaQuery.of(context).size.width * 0.215, // Responsive width
+                      padding: EdgeInsets.symmetric(vertical: 14),
+                      decoration: BoxDecoration(
+                        gradient: selectedTransport == category
+                            ? LinearGradient(colors: [Color(0xFF134277), Color(0xFF134277)])
+                            : LinearGradient(colors: [Colors.grey[200]!, Colors.grey[200]!]),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: selectedTransport == category ? Color(0xFF134277) : Colors.grey[400]!,
+                          width: 2,
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          category,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w500,
+                            color: selectedTransport == category ? Colors.white : Colors.black,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
               ),
+              SizedBox(height: 10),
               // Accommodation
               _buildTextField(
                 controller: _accommodationController,
@@ -1016,48 +1066,10 @@ class _EditTripScreenState extends State<AdminTripEditScreen> {
                   if (value == null || value.isEmpty) {
                     return 'Please enter Accommodation';
                   }
-                  final usernameRegExp = RegExp(r'^[a-zA-Z]');
-                  if (!usernameRegExp.hasMatch(value)) {
-                    return 'Invalid Accommodation';
-                  }
                   return null;
                 },
               ),
-              //Included Services
-              _buildTextField(
-                controller: _includedServicesController,
-                labelText: "Included Services",
-                hintText: "Enter your Included Services",
-                keyboardType: TextInputType.name,
-                maxLines: 2,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter Included Services';
-                  }
-                  final usernameRegExp = RegExp(r'^[a-zA-Z]');
-                  if (!usernameRegExp.hasMatch(value)) {
-                    return 'Invalid Included Services';
-                  }
-                  return null;
-                },
-              ),
-              //Trip Fee
-              _buildTextField(
-                controller: _tripFeeController,
-                labelText: "Trip Fee",
-                hintText: "Enter your Trip Fee",
-                keyboardType: TextInputType.number,
-                maxLines: 1,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter Trip Fee (per person)';
-                  }
-                  if (!RegExp(r'^[0-9]+$').hasMatch(value)) {
-                    return 'Invalid Trip Fee(must be digits)';
-                  }
-                  return null;
-                },
-              ),
+
               //Max Participants
               _buildTextField(
                 controller: _maxParticipantsController,
@@ -1075,24 +1087,59 @@ class _EditTripScreenState extends State<AdminTripEditScreen> {
                   return null;
                 },
               ),
-              //Contact Info
+
+              //Trip Fee
               _buildTextField(
-                controller: _contactInfoController,
-                labelText: "Contact Info",
-                hintText: "Enter your Contact Info",
-                keyboardType: TextInputType.phone,
+                controller: _tripFeeController,
+                labelText: "Trip Fee",
+                hintText: "Enter your Trip Fee",
+                keyboardType: TextInputType.number,
                 maxLines: 1,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
-                    return 'Please enter Contact Information';
+                    return 'Please enter Trip Fee (per person)';
                   }
-                  final phoneRegExp = RegExp(r'^[0-9]{10}$');
-                  if (!phoneRegExp.hasMatch(value)) {
-                    return 'Invalid contact details (must be 10 digits)';
+                  if (!RegExp(r'^[0-9.]+$').hasMatch(value)) {
+                    return 'Invalid Trip Fee(must be digits)';
                   }
                   return null;
                 },
               ),
+
+              SizedBox(height: 10),
+              Text(
+                "Included Services:",
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              ),
+              SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                children: allServices.map((service) {
+                  return ChoiceChip(
+                    showCheckmark: false,
+                    label: Text(service),
+                    selected: _includedServices.contains(service), // Highlight selected services
+                    onSelected: (selected) {
+                      setState(() {
+                        selected
+                            ? _includedServices.add(service)
+                            : _includedServices.remove(service);
+                      });
+                    },
+                    selectedColor: Color(0xFF134277), // Highlighted color
+                    backgroundColor: Colors.grey[200], // Default chip color
+                    labelStyle: TextStyle(
+                      color: _includedServices.contains(service) ? Colors.white : Colors.black87,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      side: BorderSide(width: 1.5, color: Colors.grey),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  );
+                }).toList(),
+              ),
+              SizedBox(height: 6),
+
               //Contact Info
               _buildTextField(
                 controller: _whatsappInfoController,
@@ -1143,6 +1190,67 @@ class _EditTripScreenState extends State<AdminTripEditScreen> {
       ),
     );
   }
+
+  Widget _buildDateTimeSelector({
+    required String label,
+    required DateTime? dateTime,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+            SizedBox(height: 6),
+            Text(
+              dateTime != null
+                  ? DateFormat("yyyy-MM-dd HH:mm").format(dateTime)
+                  : "Select Date & Time",
+              style: TextStyle(fontSize: 16),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<DateTime?> _pickDateTime(
+      BuildContext context, {
+        DateTime? initialDateTime,
+        DateTime? firstDate,
+      }) async {
+    DateTime? selectedDate = await showDatePicker(
+      context: context,
+      initialDate: initialDateTime ?? DateTime.now(),
+      firstDate: firstDate ?? DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+
+    if (selectedDate == null) return null;
+
+    TimeOfDay? selectedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initialDateTime ?? DateTime.now()),
+    );
+
+    if (selectedTime == null) return null;
+
+    return DateTime(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
+      selectedTime.hour,
+      selectedTime.minute,
+    );
+  }
+
 
   Widget _buildTextField({
     required TextEditingController controller,

@@ -308,7 +308,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
       backgroundColor: kBackgroundColor,
         appBar: AppBar(
         title: const Text("User Profile",
-        style: TextStyle(color: Colors.white),),
+        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),),
         backgroundColor: Color(0xFF134277),
           foregroundColor: Colors.white,
           leading: IconButton(
@@ -542,7 +542,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                   leading: Icon(Iconsax.save_2),
                   title: Text('Saved Trips'),
                   onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => savedTripPage()));
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => SavedTripPage()));
                   },
                 ),
               ),
